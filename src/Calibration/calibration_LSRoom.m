@@ -6,6 +6,10 @@ try
 catch
     disp('Indeed we need ITA-Toolbox. We shall install it, dear')
 !git clone https://git.rwth-aachen.de/ita/toolbox.git Toolboxes/ITA-Toolbox
+if ispc
+run([pwd '\Toolboxes\ITA-Toolbox\ita_toolbox_setup.m'])
+else
+    run([pwd '/Toolboxes/ITA-Toolbox/ita_toolbox_setup.m'])
 end
 ccx
 calibrationPath = pwd; 

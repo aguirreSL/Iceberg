@@ -4,7 +4,8 @@
 # OSX / *nix default autosave extension
 *.m~
 
-Toolboxes/ITA-Toolbox
+src/Toolboxes/ITA-Toolbox/
+src/oolboxes/ITA-Toolbox
 
 # Compiled MEX binaries (all platforms)
 *.mex*

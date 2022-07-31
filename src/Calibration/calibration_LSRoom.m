@@ -9,10 +9,12 @@ cd ..
 if ispc
 run([pwd '\Toolboxes\ITA-Toolbox\ita_toolbox_setup.m'])
 else
+    !git clone https://git.rwth-aachen.de/ita/toolbox.git ../Toolboxes/ITA-Toolbox
     run([pwd '/Toolboxes/ITA-Toolbox/ita_toolbox_setup.m'])
 end
-cd Calibration
 
+cd Calibration
+end
 
 
 %% Create record session

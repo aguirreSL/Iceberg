@@ -6,7 +6,7 @@
 
 src/Toolboxes/ITA-Toolbox/
 src/oolboxes/ITA-Toolbox
-
+src/oolboxes/polarch
 # Compiled MEX binaries (all platforms)
 *.mex*
 

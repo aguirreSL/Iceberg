@@ -1,6 +1,7 @@
 %% Add Paths/ITA
 
 addpath(genpath(pwd))
+setToolboxes
 try
     test = itaAudio;
     clear test

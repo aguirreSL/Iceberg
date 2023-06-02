@@ -4,9 +4,7 @@
 # OSX / *nix default autosave extension
 *.m~
 
-src/Toolboxes/ITA-Toolbox/
-src/oolboxes/ITA-Toolbox
-src/oolboxes/polarch
+/src/Toolboxes/
 .DS_Store
 
 # Compiled MEX binaries (all platforms)
@@ -34,4 +32,26 @@ codegen/
 
 # Octave session info
 octave-workspace
+
+# Ignore MATLAB temporary files
+*.asv
+*.m~*
+*.mlx~*
+*.mlapp~*
+
+# Ignore MATLAB autosave and backup files
+*.asv
+*.asv.*
+*.m.bak
+*.mlapp.bak
+
+# Ignore MATLAB code analyzer files
+*.mldatx
+*.mlprj
+
+# Ignore MATLAB coverage report files
+*.cvg
+
+# Ignore MATLAB P-files
+*.p
 

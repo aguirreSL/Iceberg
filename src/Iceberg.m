@@ -1,5 +1,5 @@
-function [final_audio] = setAuralizationHybrid_4LS_2021(signal,level,angle,iIR,configurationSetup)
-%% setAuralizationHybrid2021(signal,level,angle,iIR,configurationSetup)
+function [final_audio] = Iceberg(signal,level,angle,iIR,configurationSetup)
+%% Iceberg2021(signal,level,angle,iIR,configurationSetup)
 % Auralize file to a specific array in hybrid mode VBAP/Ambisonics
 % Three IR Options are provided
  
@@ -72,7 +72,7 @@ end
     %% Calibrated VBAP to specified Sound Pressure Level
     VBAP_DS =   set_level_vbap_fly_in(convolved_DSER_signal,level,angle,configurationSetup);
     VBAP_DS =   VBAP_DS*max(DSER.time);
-    %% fetch VBAP Direct Sound to the ERH/Glasgow Array
+    %% fetch VBAP Direct Sound to the Array
     
     for i = 1:length(activeLSNumbers)
         VBAP_DSER_Part.time(:,activeLSNumbers(i)) = VBAP_DS.time(:,i);
@@ -94,17 +94,17 @@ end
     %% Ambisonics
     sinal_Ambisonics_ERLR   = ita_convolve(signalAmb,IR_Late);         % Signal with Late Reverberation
     %% Calibrated Ambisonics to specified Sound Pressure Level
-    %Decode to ERH Loudspeaker array
+    %Decode to Loudspeaker array
     Ambisonics_ERLRSignal = itaAudio(decodeBformat(...
         sinal_Ambisonics_ERLR.time,...
         D4),iFs,'time');
-    % fetch Ambisonics Late reverberation to the ERH Array
+    % fetch Ambisonics Late reverberation to the Array
     for i = 1:length(activeLSNumbers)
         Amb_ERLR_Part.time(:,activeLSNumbers(i))  = Ambisonics_ERLRSignal.time(:,i);
     end
     %% Combine DS ER and LR
     final_audio = ita_add(VBAP_DSER_Part,Amb_ERLR_Part);    %%
     if length(configurationSetup.LSArray) >final_audio.dimensions
-        final_audio.time(:,final_audio.dimensions+1:length(configurationSetup.LSArray)) = zeros(final_audio.nSamples,length(configurationSetup.LSArray)-(final_audio.dimensions+1));
+        final_audio.time(:,final_audio.dimensions+1:length(configurationSetup.LSArray)) = zeros(final_audio.nSamples,length(configurationSetup.LSArray)-(final_audio.dimensions));
     end
 end

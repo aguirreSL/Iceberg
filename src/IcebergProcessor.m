@@ -15,10 +15,7 @@ classdef IcebergProcessor
     
     methods
         function obj = IcebergProcessor(signal, level, angle, IR, configurationSetup)
-            % Check if configurationSetup is empty
             if nargin < 5 || isempty(configurationSetup)
-                % Assign default configurationSetup value
-                
                 configurationSetup = obj.getDefaultConfigurationSetup();
             end
             obj.signal = signal;
@@ -171,7 +168,7 @@ classdef IcebergProcessor
             signal_to_play.samplingRate = obj.iFs;  %set FS (if you use other than 44.1 this step is essential)
             signal_to_play.fftDegree = log2(obj.iFs*obj.signal.trackLength); %At that point you got the FFTdegree to seconds already, right? t = (2^(fftDegree))/fs
             for nSignalsIndex = 1:obj.signal.nChannels
-                signal_vector(nSignalsIndex,:,:) = ring_VBAP(obj.iFs,obj.signal.time(:,nSignalsIndex),obj.angle(nSignalsIndex),obj.configurationSetup);
+                signal_vector(nSignalsIndex,:,:) = obj.ring_VBAP(obj.iFs,obj.signal.time(:,nSignalsIndex),obj.angle(nSignalsIndex),obj.configurationSetup);
                 signal_ita(nSignalsIndex)  = itaAudio(squeeze(signal_vector(nSignalsIndex,:,:)),obj.iFs,'time');
                 signal_to_play = ita_add(signal_to_play,signal_ita(nSignalsIndex));
             end
@@ -201,8 +198,8 @@ classdef IcebergProcessor
             angle_space = 360/length(obj.configurationSetup.ls_dir); %
             %Clockwise adjust to match odeon
             
-            if iAngles > 90 && iAngles <= 180 %Desired presentation to sequential LS
-                if  iAngles <= 135
+            if obj.angle > 90 && obj.angle<= 180 %Desired presentation to sequential LS
+                if  obj.angle<= 135
                     %     s1 = 1; s2 = 19;
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==90);
@@ -210,24 +207,24 @@ classdef IcebergProcessor
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==90);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                 end
-            elseif iAngles > 180 && iAngles <= 270
-                if  iAngles <= 225
+            elseif obj.angle> 180 && obj.angle<= 270
+                if  obj.angle<= 225
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                 else
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                 end
-            elseif iAngles > 270 && iAngles <= 360
-                if  iAngles <= 315
+            elseif obj.angle> 270 && obj.angle<= 360
+                if  obj.angle<= 315
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==0);
                 else
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==0);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                 end
-            elseif (iAngles >= 0 && iAngles <= 90)
-                if  iAngles <= 45
+            elseif (obj.angle>= 0 && obj.angle<= 90)
+                if  obj.angle<= 45
                     s1 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==0);
                     s2 = activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==90);
                 else
@@ -238,13 +235,13 @@ classdef IcebergProcessor
             
             %determine panning levels
             %Coherent sum (6 dB) , so ^2 to calculate the correct energy level factor %Otherwise just sin/cos to pan law
-            s1_level = (sin(abs(rem(iAngles,angle_space)/angle_space*(pi/2))))^2;
-            s2_level = (cos(abs(rem(iAngles,angle_space)/angle_space*(pi/2))))^2;
+            s1_level = (sin(abs(rem(obj.angle,angle_space)/angle_space*(pi/2))))^2;
+            s2_level = (cos(abs(rem(obj.angle,angle_space)/angle_space*(pi/2))))^2;
             
             [s1_level, s2_level] = deal(max([s1_level s2_level]),min([s1_level  s2_level]));
             if obj.level ~= 'n'
                 for idx = 1:length(obj.level)
-                    %         [s1(idx), s2(idx) s1_level(idx) s2_level(idx)] = equal_power_pan(iAngles(idx));
+                    %         [s1(idx), s2(idx) s1_level(idx) s2_level(idx)] = equal_power_pan(obj.angle(idx));
                     if isinf(20*log10(10^((obj.level(idx)/20))*s1_level(idx)))==1
                         levels(s1(idx)) = 0;
                     else
@@ -257,8 +254,8 @@ classdef IcebergProcessor
                     end
                 end
             end
-            signal_run_ita_FILTER       = itaAudio(zeros(length(signal_to_play.time),length(activeLSNumbers)),iFs,'time');
-            signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal_to_play.time),length(activeLSNumbers)),iFs,'time');
+            signal_run_ita_FILTER       = itaAudio(zeros(length(signal_to_play.time),length(activeLSNumbers)),obj.iFs,'time');
+            signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal_to_play.time),length(activeLSNumbers)),obj.iFs,'time');
             
             %% What is happening here?
             for idx = 1:length(activeLSNumbers)
@@ -321,15 +318,12 @@ classdef IcebergProcessor
             %% Combine DS ER and LR
             final_audio = ita_add(obj.VBAP_DSER_Part,obj.Amb_ERLR_Part);    %%
             if length(obj.configurationSetup.LSArray) >final_audio.dimensions
-                final_audio.time(:,final_audio.dimensions+1:length(obj.configurationSetup.LSArray)) = zeros(final_audio.nSamples,length(configurationSetup.LSArray)-(final_audio.dimensions));
+                final_audio.time(:,final_audio.dimensions+1:length(obj.configurationSetup.LSArray)) = zeros(final_audio.nSamples,length(obj.configurationSetup.LSArray)-(final_audio.dimensions));
             end
             
         end
-    end
-    
-    methods (Access = private)
-        
-        function [pansig,padsig,sig] = ring_VBAP(fs,iSignal,iAngle,configurationSetup)
+
+        function [pansig,padsig,sig] = ring_VBAP(obj,fs,iSignal,iAngle,configurationSetup)
             %% VBAP Archontis
             % initial parameters (Here we can even move the sound source... I will
             % update this to have as an option, now is static) .Sergio.
@@ -375,51 +369,13 @@ classdef IcebergProcessor
             
             
         end
-        %%
-        %
-        % function [s1, s2, s1_level, s2_level] = equal_power_pan(angle)
-        % %EQUAL_POWER_PAN returns loudspeakers and scalars
-        % % Given a desired sound source angle, this function computes the two
-        % % nearest loudspeakers and the associated scalars to ensure the signal is
-        % % panned between them without a change in overall level
-        % %
-        % % Example:
-        % % >>[s1 s2 s1_level s2_level] = equal_power_pan(40)
-        % % s1 = 6
-        % % s2 = 5
-        % % s1_level = 0.8660
-        % % s2_level = 0.5000
-        % %
-        % % Then adjust your "signal" as follows:
-        % % s1_signal = signal.*s1_level
-        % % s2_signal = signal.*s2_level
-        % % Author: Owen
-        % % Date: 14/01/11
-        %
-        % %establish loudspeaker locations and numbers
-        % % speaker_angles = 0:15:345;
-        % % speaker_nums = 1:25;
-        % speaker_angles = 0:90:345;
-        % speaker_nums = 1:6:24;
-        %
-        % %fold over angles:
-        % angle = mod(angle+90,360);
-        %
-        % %determine nearest loudspeaker to the desired angle
-        % [~,index] = sort(abs(speaker_angles - angle));
-        %
-        % [s1, s2] = deal(speaker_nums(index(1)),speaker_nums(index(2)));
-        %
-        % %fold over ring rotations:
-        % s1 = mod(s1-1,4)+1; s2 = mod(s2-1,4)+1;
-        %
-        % %determine panning levels
-        % s1_level = sin(abs(rem(angle,15)/15*(pi/2)));
-        % s2_level = cos(abs(rem(angle,15)/15*(pi/2)));
-        %
-        % %swap if s1 is quieter
-        % [s1_level, s2_level] = deal(max([s1_level s2_level]),min([s1_level  s2_level]));
-        % end
+    end
+    
+    
+
+    methods (Access = private)
+
+
         
         function configurationSetup = getDefaultConfigurationSetup(obj)
             % Define and return the default configurationSetup
@@ -454,3 +410,5 @@ classdef IcebergProcessor
         end
     end
 end
+
+        

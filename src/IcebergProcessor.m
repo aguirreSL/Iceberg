@@ -387,12 +387,12 @@ classdef IcebergProcessor
             configurationSetup.Channel_19 = 090; %The right loudspeaker is connected to output number 19 of the sound card.
             
             configurationSetup.TotalNumberOfLoudspeakers = 24;
-            configurationSetup.new_Level_Factor = zeros(1,24);
+            configurationSetup.new_Level_Factor = ones(1,24);
             configurationSetup.iFactor = 1;
             
             b = itaResult;
             b.freqData = ones(27,1);
-            b.freqVector = [50;62.5000000000000;80;100;125;155;200;250;315;400;500;630;800;1000;1250;1600;2000;2500;3150;4000;5000;6350;8000;10000;12500;16000;20000];
+            b.freqVector = [50;62.5;80;100;125;155;200;250;315;400;500;630;800;1000;1250;1600;2000;2500;3150;4000;5000;6350;8000;10000;12500;16000;20000];
             
             for iLSpeaker = 1:24
                 configurationSetup.iLoudspeakerFreqFilter(iLSpeaker) = b;

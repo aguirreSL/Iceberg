@@ -1,60 +1,53 @@
 classdef IcebergProcessor
     properties
-        signal
-        level
-        angle
-        IR
         configurationSetup
-        VBAP_DSER_Part
-        Amb_ERLR_Part
-        
-        iFs
-        signalAmb
-        iChannel
+    end
+
+        properties (Access = private)
+        VBAP_DSER
+        Ambisonics_ERLR
+        processed_audio
+        setup_audio
     end
     
     methods
         function obj = IcebergProcessor(signal, level, angle, IR, configurationSetup)
-            if nargin < 5 || isempty(configurationSetup)
-                configurationSetup = obj.getDefaultConfigurationSetup();
-            end
-            obj.signal = signal;
-            obj.level = level;
-            if angle <= 360
-            obj.angle = round(abs(angle)/5) * 5;
-            else
-                disp('Max angle is 360')
-            end
-            obj.IR = IR;
-            obj.configurationSetup = configurationSetup;
             
-            % Initialize itaAudio objects
-            obj.VBAP_DSER_Part = itaAudio();
-            obj.Amb_ERLR_Part = itaAudio();
-            obj.VBAP_DSER_Part.samplingRate = signal.samplingRate;
-            obj.Amb_ERLR_Part.samplingRate = signal.samplingRate;
-        end
-        
-        function final_audio = process(obj)
-            % Array Settings
-%             obj.configurationSetup.activeLSNumbers = zeros(1, length(obj.configurationSetup.ls_dir));
-%             for indexx = 1:length(obj.configurationSetup.ls_dir)
-%                 iArrayP = find(obj.configurationSetup.LSArray == obj.configurationSetup.ls_dir(indexx, 1), 1);
-%                 obj.configurationSetup.activeLSNumbers(indexx) = iArrayP;
-%             end
-            
-            obj.iFs = obj.signal.samplingRate; % Sample Frequency
-            obj.signal = ita_normalize_dat(obj.signal, 'allchannels', 'true');
-            
-            %% Ambisonics part
-            %Load the most recent calibration
-            obj.configurationSetup.Level_Factor = obj.configurationSetup.new_Level_Factor;
-            obj.configurationSetup.lsdBperVolt = (20*log10((obj.configurationSetup.iFactor)/2e-5));
-            if obj.level > 95
+            if level > 95
                 error ('Level max is 95 dB');
             end
             
+            if nargin < 5 || isempty(configurationSetup)
+                configurationSetup = obj.getDefaultConfigurationSetup();
+            end
+
+            configurationSetup.signal = signal;
+            configurationSetup.level = level;
+            configurationSetup.IR = IR;
+            
+            if angle <= 360
+            angle = round(abs(angle)/5) * 5;
+            else
+                disp('Max angle is 360')
+            end
+            configurationSetup.angle = angle;
+
+            obj.configurationSetup = configurationSetup;
+            % Initialize itaAudio objects
+            obj.VBAP_DSER = itaAudio();
+            obj.Ambisonics_ERLR = itaAudio();
+            obj.VBAP_DSER.samplingRate = signal.samplingRate;
+            obj.Ambisonics_ERLR.samplingRate = signal.samplingRate;
+        end
+        
+        function [final_audio, setup_audio] = process(obj)
+            % Array Settings
+%             iFs = signal.samplingRate; % Sample Frequency
+            signal = ita_normalize_dat(obj.configurationSetup.signal, 'allchannels', 'true');
+            obj.configurationSetup.Level_Factor = obj.configurationSetup.new_Level_Factor;
+            obj.configurationSetup.lsdBperVolt = (20*log10((obj.configurationSetup.iFactor)/2e-5));
             obj.configurationSetup.activeLSNumbers = zeros(1,length(obj.configurationSetup.ls_dir));
+
             for indexActiveLSNumbers= 1:length(obj.configurationSetup.ls_dir)
                 iArrayP = find(obj.configurationSetup.LSArray==obj.configurationSetup.ls_dir(indexActiveLSNumbers,1),1);
                 obj.configurationSetup.activeLSNumbers(indexActiveLSNumbers) = iArrayP;
@@ -62,79 +55,44 @@ classdef IcebergProcessor
             
             for iCount = obj.configurationSetup.activeLSNumbers
                 Interpolation(:,iCount) = pchip(obj.configurationSetup.iLoudspeakerFreqFilter(iCount).freqVector,...
-                    obj.configurationSetup.iLoudspeakerFreqFilter(iCount).freq,obj.signal.freqVector);
+                    obj.configurationSetup.iLoudspeakerFreqFilter(iCount).freq,signal.freqVector);
             end
             
-            frequencyFilter = itaAudio(Interpolation,obj.iFs,'freq');
-            new_page = zeros(length(obj.signal.time),1);
-            stimulus = zeros(length(obj.signal.time),1);
-            signal_run = zeros(length(obj.signal.time),1);
-            
-            %% Select the filter fo the audio according to the LS (Virtual Loudspeakers are filtered with the Nearest Speaker NSP)
-            % This is to fit level the ambisonics audio part
-%             if obj.angle > 90 && obj.angle <= 180
-%                 if  obj.angle <= 135
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==90,1));
-%                 else
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==180,1));
-%                 end
-%             elseif obj.angle > 180 && obj.angle <= 270
-%                 if  obj.angle <= 225
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==180,1));
-%                 else
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==270,1));
-%                 end
-%             elseif obj.angle > 270 && obj.angle <= 360
-%                 if  obj.angle <= 315
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==270,1));
-%                 else
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==0,1));
-%                 end
-%             elseif obj.angle >= 0 && obj.angle <= 90
-%                 if  obj.angle <= 45
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==0,1));
-%                 else
-%                     obj.iChannel = obj.configurationSetup.activeLSNumbers(find(obj.configurationSetup.ls_dir==90,1));
-%                 end
-%             end
-            
-            % Calculate the absolute difference between the user's number and each element of the vector
-            diff_vec = abs(obj.configurationSetup.ls_dir(1,:) - obj.angle);
+            diff_vec = abs(obj.configurationSetup.ls_dir(1,:) - obj.configurationSetup.angle);
             
             % Find the index of the closest element
-            [~, obj.iChannel] = min(diff_vec);
+            [~, iChannel] = min(diff_vec);
+            frequencyFilter = itaAudio(Interpolation,signal.samplingRate,'freq');
+            new_page = zeros(length(signal.time),1);
+            stimulus = zeros(length(signal.time),1);
+            signal_run = zeros(length(signal.time),1);
             
-            signal_run_ita_FILTER       = itaAudio(zeros(length(obj.signal.time),1),obj.iFs,'time');
-            signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(obj.signal.time),1),obj.iFs,'time');
+            signal_run_ita_FILTER       = itaAudio(zeros(length(signal.time),1),signal.samplingRate,'time');
+            signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal.time),1),signal.samplingRate,'time');
             
-            if isnan(obj.signal.time)
+            if isnan(signal.time)
                 new_page(:,1) = 0;
             else
-                new_page(:,1) = obj.signal.time;
+                new_page(:,1) = signal.time;
             end
             scaler = (sqrt(mean(new_page(:,1).^2)))*2;
             stimulus(:,1) = new_page(:,1)./scaler;
-            if obj.level ~= 'n' %Verify this
-                signal_run(:,1) = stimulus(:,1).*repmat(10.^((obj.level - obj.configurationSetup.lsdBperVolt )./20),length(new_page(:,1)),1);
+            if obj.configurationSetup.level ~= 'n' %Verify this
+                signal_run(:,1) = stimulus(:,1).*repmat(10.^((obj.configurationSetup.level - obj.configurationSetup.lsdBperVolt )./20),length(new_page(:,1)),1);
             else
-                signal_run(:,1)= obj.signal.time;
+                signal_run(:,1)= signal.time;
             end
-            signal_run_ita_dB = itaAudio(signal_run,obj.iFs,'time');
-            filtered = ita_multiply_spk(signal_run_ita_dB,frequencyFilter.ch(obj.iChannel));
+            signal_run_ita_dB = itaAudio(signal_run,signal.samplingRate,'time');
+            filtered = ita_multiply_spk(signal_run_ita_dB,frequencyFilter.ch(iChannel));
             signal_run_ita_FILTER.time(:,1) = filtered.time;
-            signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(obj.configurationSetup.Level_Factor(obj.iChannel));
+            signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(obj.configurationSetup.Level_Factor(iChannel));
             
-            
-            obj.signalAmb = signal_run_ita_FILTER_LEVEL;
-            
-            %% end Ambisonics normalization part (Check all this - smells fishy)
-            
-            % Rest of the code...
+            signalAmb = signal_run_ita_FILTER_LEVEL;
+                        
             [D4,~] = ambiDecoder(obj.configurationSetup.ls_dir,'SAD',1,1);                                 % Create Decoder Matrix with n=4 LS SAD decoder!
-            omnichannelIR = ita_split(obj.IR,1);                                %Select/get Omnidirectional IR
+            omnichannelIR = ita_split(obj.configurationSetup.IR,1); 
             %% Center time
             [IR_Early, shiftIndex] = ita_time_shift(omnichannelIR,'auto'); % Pull
-            %
             %             if iIR == 3
             %                 IR_Early = ita_time_window(IR_Early,[0 .01],'time','windowType','rectwin'); %It does not make sense the cTime Only DS from Odeon simulation
             %                 DSER = ita_time_shift(IR_Early,abs(shiftIndex));            % Push
@@ -147,37 +105,19 @@ classdef IcebergProcessor
                 cTime = centerTime.Center_Time.freq;
             end
             IR_Early = ita_time_window(IR_Early,[0 cTime],'time','windowType','hann');
-            % Shift back to fit the future composition
             DSER = ita_time_shift(IR_Early,abs(shiftIndex));            % Push
-            %             end
-            
-            %% Signal with Omnidirectional reverberation
-            convolved_DSER_signal = ita_convolve(obj.signal,DSER);
-            %% Calibrated VBAP to specified Sound Pressure Level
+            convolved_DSER_signal = ita_convolve(signal,DSER);
 
             %% Prepare Signal
             signal_to_play = itaAudio();                     
-            signal_to_play.samplingRate = obj.iFs;           
-            signal_to_play.fftDegree = log2(obj.iFs*obj.signal.trackLength);
-            for nSignalsIndex = 1:obj.signal.nChannels
-                signal_vector(nSignalsIndex,:,:) = obj.ring_VBAP(obj.iFs,obj.signal.time(:,nSignalsIndex),obj.angle(nSignalsIndex),obj.configurationSetup);
-                signal_ita(nSignalsIndex)  = itaAudio(squeeze(signal_vector(nSignalsIndex,:,:)),obj.iFs,'time');
+            signal_to_play.samplingRate = signal.samplingRate;           
+            signal_to_play.fftDegree = log2(signal.samplingRate*signal.trackLength);
+            for nSignalsIndex = 1:signal.nChannels
+                signal_vector(nSignalsIndex,:,:) = obj.ring_VBAP(signal.samplingRate,signal.time(:,nSignalsIndex),angle(nSignalsIndex),obj.configurationSetup);
+                signal_ita(nSignalsIndex)  = itaAudio(squeeze(signal_vector(nSignalsIndex,:,:)),signal.samplingRate,'time');
                 signal_to_play = ita_add(signal_to_play,signal_ita(nSignalsIndex));
             end
             
-            %%
-%             activeLSNumbers = zeros(1,length(obj.configurationSetup.ls_dir));
-%             for indexx= 1:length(obj.configurationSetup.ls_dir)
-%                 iArrayP = find(obj.configurationSetup.LSArray==obj.configurationSetup.ls_dir(indexx,1),1);
-%                 activeLSNumbers(indexx) = iArrayP;
-%             end
-%             for iCount = activeLSNumbers
-%                 Interpolation(:,iCount) = pchip(obj.configurationSetup.iLoudspeakerFreqFilter(iCount).freqVector,obj.configurationSetup.iLoudspeakerFreqFilter(iCount).freq,signal_to_play.freqVector);
-%             end
-%             
-%             frequencyFilter = itaAudio(Interpolation,obj.iFs,'freq');
-            
-            %%
             new_page    = zeros(length(signal_to_play.time),length(obj.configurationSetup.activeLSNumbers));
             scaler      = zeros(1,length(obj.configurationSetup.activeLSNumbers));
             stimulus    = zeros(length(signal_to_play.time),length(obj.configurationSetup.activeLSNumbers));
@@ -189,8 +129,8 @@ classdef IcebergProcessor
             angle_space = 360/length(obj.configurationSetup.ls_dir); %
             %Clockwise adjust to match odeon
             
-            if obj.angle > 90 && obj.angle<= 180 %Desired presentation to sequential LS
-                if  obj.angle<= 135
+            if obj.configurationSetup.angle> 90 && obj.configurationSetup.angle<= 180 %Desired presentation to sequential LS
+                if  obj.configurationSetup.angle<= 135
                     %     s1 = 1; s2 = 19;
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==90);
@@ -198,24 +138,24 @@ classdef IcebergProcessor
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==90);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                 end
-            elseif obj.angle> 180 && obj.angle<= 270
-                if  obj.angle<= 225
+            elseif obj.configurationSetup.angle > 180 && obj.configurationSetup.angle<= 270
+                if  obj.configurationSetup.angle<= 225
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                 else
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==180);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                 end
-            elseif obj.angle> 270 && obj.angle<= 360
-                if  obj.angle<= 315
+            elseif obj.configurationSetup.angle> 270 && obj.configurationSetup.angle<= 360
+                if  obj.configurationSetup.angle<= 315
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==0);
                 else
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==0);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==270);
                 end
-            elseif (obj.angle>= 0 && obj.angle<= 90)
-                if  obj.angle<= 45
+            elseif (obj.configurationSetup.angle>= 0 && obj.configurationSetup.angle<= 90)
+                if  obj.configurationSetup.angle<= 45
                     s1 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==0);
                     s2 = obj.configurationSetup.activeLSNumbers(obj.configurationSetup.ls_dir(:,1)==90);
                 else
@@ -226,29 +166,28 @@ classdef IcebergProcessor
             
             %determine panning levels per channel
             %Coherent sum (6 dB) , so ^2 to calculate the correct energy level factor %Otherwise just sin/cos to pan law
-            s1_level = (sin(abs(rem(obj.angle,angle_space)/angle_space*(pi/2))))^2;
-            s2_level = (cos(abs(rem(obj.angle,angle_space)/angle_space*(pi/2))))^2;
+            s1_level = (sin(abs(rem(obj.configurationSetup.angle,angle_space)/angle_space*(pi/2))))^2;
+            s2_level = (cos(abs(rem(obj.configurationSetup.angle,angle_space)/angle_space*(pi/2))))^2;
             
             [s1_level, s2_level] = deal(max([s1_level s2_level]),min([s1_level  s2_level]));
-            if obj.level ~= 'n'
-                for idx = 1:length(obj.level)
-                    %         [s1(idx), s2(idx) s1_level(idx) s2_level(idx)] = equal_power_pan(obj.angle(idx));
-                    if isinf(20*log10(10^((obj.level(idx)/20))*s1_level(idx)))==1
+            if obj.configurationSetup.level ~= 'n'
+                for idx = 1:length(obj.configurationSetup.level)
+                    %         [s1(idx), s2(idx) s1_level(idx) s2_level(idx)] = equal_power_pan(angle(idx));
+                    if isinf(20*log10(10^((obj.configurationSetup.level(idx)/20))*s1_level(idx)))
                         levels(s1(idx)) = 0;
                     else
-                        levels(s1(idx)) = 20*log10(10^((obj.level(idx)/20))*s1_level(idx));
+                        levels(s1(idx)) = 20*log10(10^((obj.configurationSetup.level(idx)/20))*s1_level(idx));
                     end
-                    if isinf(20*log10(10^((obj.level(idx)/20))*s2_level(idx)))
+                    if isinf(20*log10(10^((obj.configurationSetup.level(idx)/20))*s2_level(idx)))
                         levels(s2(idx)) = 0;
                     else
-                        levels(s2(idx)) = 20*log10(10^((obj.level(idx)/20))*s2_level(idx));
+                        levels(s2(idx)) = 20*log10(10^((obj.configurationSetup.level(idx)/20))*s2_level(idx));
                     end
                 end
             end
-            signal_run_ita_FILTER       = itaAudio(zeros(length(signal_to_play.time),length(obj.configurationSetup.activeLSNumbers)),obj.iFs,'time');
-            signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal_to_play.time),length(obj.configurationSetup.activeLSNumbers)),obj.iFs,'time');
+            signal_run_ita_FILTER       = itaAudio(zeros(length(signal_to_play.time),length(obj.configurationSetup.activeLSNumbers)),signal.samplingRate,'time');
+            signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal_to_play.time),length(obj.configurationSetup.activeLSNumbers)),signal.samplingRate,'time');
             
-            %% 
             for idx = 1:length(obj.configurationSetup.activeLSNumbers)
                 if isnan(signal_to_play.ch(idx).time)==1
                     new_page(:,idx) = 0;
@@ -261,52 +200,57 @@ classdef IcebergProcessor
                 if (scaler(idx)~=0) %Avoid NaN
                     stimulus(:,idx) = new_page(:,idx)./scaler(idx);
                 end
-                %     if level ~= 'n'
+
                 signal_run(:,idx) = stimulus(:,idx).*repmat(10.^((levels(obj.configurationSetup.activeLSNumbers(idx)) - obj.configurationSetup.lsdBperVolt )./20),length(new_page(:,idx)),1);
-                %     else
-                %         signal_run(:,idx)= signal_to_play.ch(idx).time;
-                %     end
-                signal_run_ita_dB = itaAudio(signal_run,obj.iFs,'time');
+
+                signal_run_ita_dB = itaAudio(signal_run,signal.samplingRate,'time');
                 filtered = ita_multiply_spk(signal_run_ita_dB.ch(idx),frequencyFilter.ch(obj.configurationSetup.activeLSNumbers(idx)));
                 signal_run_ita_FILTER.time(:,idx) = filtered.time;
                 signal_run_ita_FILTER_LEVEL.time(:,idx) = signal_run_ita_FILTER.ch(idx).time.*(obj.configurationSetup.Level_Factor(obj.configurationSetup.activeLSNumbers(idx)));
             end
-            %%
+
             VBAP_DS = signal_run_ita_FILTER_LEVEL;
-            
-            
             VBAP_DS =   VBAP_DS*max(DSER.time);
-            %% fetch VBAP Direct Sound to the Array
-            
+
             for i = 1:length(obj.configurationSetup.activeLSNumbers)
-                obj.VBAP_DSER_Part.time(:,obj.configurationSetup.activeLSNumbers(i)) = VBAP_DS.time(:,i);
+                obj.VBAP_DSER.time(:,obj.configurationSetup.activeLSNumbers(i)) = VBAP_DS.time(:,i);
             end
+            
             %% Shift IR to the begining
-            [IR_Late, shiftIndex] = ita_time_shift(obj.IR,'auto');
+            [IR_Late, shiftIndex] = ita_time_shift(obj.configurationSetup.IR,'auto');
             % Crop out the the Direc Sound+Early Reflections (Center Time) (May work
             % with window as well, but the energy balance need to be verified in this
             % case
             IR_Late = ita_time_crop(IR_Late,[cTime 0],'time');
+            
             % Shift back to fit the future composition
-            resyncSamples = obj.IR.nSamples-IR_Late.nSamples;           % Timefactor
+            resyncSamples = obj.configurationSetup.IR.nSamples-IR_Late.nSamples;           % Timefactor
             IR_Late.time = [zeros(resyncSamples,4); IR_Late.time];      % Adjusting time
             IR_Late = ita_time_window(IR_Late, [0 (IR_Late.trackLength-0.05)],'time','windowType','rectwin'); %Get rid of non linearities
             IR_Late = ita_time_shift(IR_Late,abs(shiftIndex));          % Push
+            
             %% Ambisonics
-            sinal_Ambisonics_ERLR   = ita_convolve(obj.signalAmb,IR_Late);         % Signal with Late Reverberation
+            sinal_Ambisonics_ERLR   = ita_convolve(signalAmb,IR_Late);         % Signal with Late Reverberation
+            
             %% Calibrated Ambisonics to specified Sound Pressure Level
             %Decode to Loudspeaker array
-            Ambisonics_ERLRSignal = itaAudio(decodeBformat(sinal_Ambisonics_ERLR.time,D4),obj.iFs,'time');
+            Ambisonics_ERLRSignal = itaAudio(decodeBformat(sinal_Ambisonics_ERLR.time,D4),signal.samplingRate,'time');
             % fetch Ambisonics Late reverberation to the Array
             for i = 1:length(obj.configurationSetup.activeLSNumbers)
-                obj.Amb_ERLR_Part.time(:,obj.configurationSetup.activeLSNumbers(i))  = Ambisonics_ERLRSignal.time(:,i);
+                obj.Ambisonics_ERLR.time(:,obj.configurationSetup.activeLSNumbers(i))  = Ambisonics_ERLRSignal.time(:,i);
             end
+            
             %% Combine DS ER and LR
-            final_audio = ita_add(obj.VBAP_DSER_Part,obj.Amb_ERLR_Part);   
+            final_audio = ita_add(obj.VBAP_DSER,obj.Ambisonics_ERLR);   
             if length(obj.configurationSetup.LSArray) >final_audio.dimensions
                 final_audio.time(:,final_audio.dimensions+1:length(obj.configurationSetup.LSArray)) = zeros(final_audio.nSamples,length(obj.configurationSetup.LSArray)-(final_audio.dimensions));
             end
-            
+            processed_audio = final_audio;
+            setup_audio.iFS = obj.configurationSetup.iFS;
+            setup_audio.level = obj.configurationSetup.level;
+            setup_audio.angle = obj.configurationSetup.angle;
+            setup_audio.signal = obj.configurationSetup.signal;
+
         end
 
         function [pansig,padsig,sig] = ring_VBAP(obj,fs,iSignal,iAngle,configurationSetup)
@@ -386,7 +330,7 @@ classdef IcebergProcessor
             clear b
             configurationSetup.spaceBetweenLS = 360/configurationSetup.TotalNumberOfLoudspeakers;
             
-            
+            configurationSetup.iFS = 44100;
             % To be used in 4 LS Hybrid mode we need to specify the LS index numbers
             configurationSetup.ls_dir = [configurationSetup.Channel_1 configurationSetup.Channel_7 configurationSetup.Channel_13 configurationSetup.Channel_19; 0 0 0 0]';
             %Right LS is 90 Degrees / Left is 270

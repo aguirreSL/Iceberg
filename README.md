@@ -1,5 +1,6 @@
 # Iceberg Auralization. 
 # Iceberg: A Loudspeaker-based Room Auralization Method for Auditory Research.
+![IMG_6583](https://github.com/aguirreSL/Iceberg/assets/61785053/f26b60c4-9369-4da8-a5e6-7194abb0f5cb)
 
 This is an example of usege of Iceberg auralization method.
 

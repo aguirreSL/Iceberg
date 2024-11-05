@@ -59,13 +59,15 @@ iFFTDegree = 15;
 iPlot = 1;
 [iLoudspeakerFreqFilter,UoN_RIR,UoN_RIR_adjusted] = getTF(iAverages,iFs,iFFTDegree,inputChannel,iPlot);
 %% Align Loudspeakers to same reproduction level
-nTolerance = 0.4;       % [dB]    Average
-nIncrement = 0.08;       % [vFS]
-nAverage = 3;           % [-]
-excitation_signal = 3;  % 1= Sweep linear || 2= pink noise || 3 = LTASS
-iChannel = inputChannel;
-%%
-[new_Level_Factor,old_Level_Factor] = getLevel(iFactor,iLoudspeakerFreqFilter,nTolerance,nIncrement,nAverage,excitation_signal,iChannel);
+calConfig.nTolerance = 0.5;       % [dB]    Average
+calConfig.nIncrement = 0.5;       % [vFS]
+calConfig.nAverage = 3;           % [-]
+calConfig.excitation_signal = 2;  % 1= Sweep linear || 2= pink noise || 3 = LTASS
+calConfig.iChannel = inputChannel;
+calConfig.nLoudspeakers = nLoudspeakers;
+calConfig.level = 70;
+%% playrec('reset')
+[new_Level_Factor,old_Level_Factor] = getLevel(iFactor,iLoudspeakerFreqFilter,calConfig);
 %%
 name = [day{1}];
 save(['Current_Calibration_' name], 'new_Level_Factor','iLoudspeakerFreqFilter','iFactor','UoN_RIR','UoN_RIR_adjusted' )

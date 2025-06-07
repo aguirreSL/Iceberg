@@ -1,7 +1,7 @@
 function [signalcalibrated] = vbap_set_level(signal,level,iAngles,configurationSetup)
 %% Define VBAP signal to the specific array using the most recent calibration
 %
-% [signalcalibrated] = set_level_vbap_fly_in(itaAudio,level,iAngles,iVirtMethod)
+% [signalcalibrated] = vbap_set_level(itaAudio,level,iAngles,configurationSetup)
 % itaAudio each channel will be played at defined level and angle
 % level: Should be a vector as the same number of signal channels
 % iAngles: Should be a vector as the same number of signal channels

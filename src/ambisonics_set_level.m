@@ -1,43 +1,30 @@
-function [signalcalibrated] = set_level_ambisonics_fly_in(signal,level,iAngles,configurationSetup)
-%%Play and record using the most recent calibration
-%Input ItaAudio
+function signalcalibrated = ambisonics_set_level(signal,level,iAngles,configurationSetup)
 
-new_Level_Factor = configurationSetup.new_Level_Factor;
-iFactor = configurationSetup.iFactor;
 iLoudspeakerFreqFilter = configurationSetup.iLoudspeakerFreqFilter;
-LSArray = configurationSetup.LSArray;
+signal_to_play = signal;
+new_page = zeros(length(signal_to_play.time),1);
+stimulus = zeros(length(signal_to_play.time),1);
+signal_run = zeros(length(signal_to_play.time),1);
+iFs = signal.samplingRate;                
 
-%% Load the most recent calibration
-Level_Factor = new_Level_Factor;
-iFs = signal.samplingRate;                %Sample Frequency
-lsdBperVolt = (20*log10((iFactor)/2e-5));
+lsdBperVolt = (20*log10((configurationSetup.iFactor)/2e-5));
 if level > 95
     error ('Level max is 95 dB');
 end
 
-
-%%
-signal_to_play = signal;
-
-%%
 activeLSNumbers = zeros(1,length(configurationSetup.ls_dir));
+
 for indexActiveLSNumbers= 1:length(configurationSetup.ls_dir)
-    iArrayP = find(LSArray==configurationSetup.ls_dir(indexActiveLSNumbers,1),1);
+    iArrayP = find(configurationSetup.LSArray==configurationSetup.ls_dir(indexActiveLSNumbers,1),1);
     activeLSNumbers(indexActiveLSNumbers) = iArrayP;
 end
+
 for iCount = activeLSNumbers
     Interpolation(:,iCount) = pchip(iLoudspeakerFreqFilter(iCount).freqVector,...
         iLoudspeakerFreqFilter(iCount).freq,signal_to_play.freqVector);
 end
 
 frequencyFilter = itaAudio(Interpolation,iFs,'freq');
-
-% % %%
-new_page = zeros(length(signal_to_play.time),1);
-stimulus = zeros(length(signal_to_play.time),1);
-signal_run = zeros(length(signal_to_play.time),1);
-
-
 
 %% Select the filter fo the audio according to the LS (Virtual Loudspeakers are filtered with the Nearest Speaker NSP)
 % This is to fit level the ambisonics audio part
@@ -85,7 +72,7 @@ end
 signal_run_ita_dB = itaAudio(signal_run,iFs,'time');
 filtered = ita_multiply_spk(signal_run_ita_dB,frequencyFilter.ch(iChannel));
 signal_run_ita_FILTER.time(:,1) = filtered.time;
-signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(Level_Factor(iChannel));
+signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(configurationSetup.new_Level_Factor(iChannel));
 
 
 signalcalibrated = signal_run_ita_FILTER_LEVEL;

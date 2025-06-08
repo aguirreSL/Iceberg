@@ -25,7 +25,7 @@ for i = 1:length(activeLSNumbers)
 end
 
 signal_nor  = ita_normalize_dat(signal,'allchannels','true');
-signalAmb   = set_level_ambisonics_fly_in(signal_nor,level,angle,configurationSetup); %Normalizing all
+signalAmb   = ambisonics_set_level(signal_nor,level,angle,configurationSetup); 
 sinal_Ambisonics_LR   = ita_convolve(signalAmb,LR);         
 %% Calibrated Ambisonics to specified Sound Pressure Level
 %Decoder Matrix with n=4 LS SAD decoder! %SAD | MMD | EPAD | ALLRAD | CSAD

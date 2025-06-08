@@ -1,37 +1,93 @@
 function setToolboxes()
-try
-    test = itaAudio;
-    clear test
-catch
-    disp('Indeed we need ITA-Toolbox. We shall install it, dear')
-    !git clone https://git.rwth-aachen.de/ita/toolbox.git ./Toolboxes/ITA-Toolbox
-    if ispc
-        run([pwd '\Toolboxes\ITA-Toolbox\ita_toolbox_setup.m'])
+% SETTOOLBOXES - Checks and installs required audio processing toolboxes
+%   This function ensures the ITA-Toolbox, VBAP, and HOA toolboxes are available
+%   - Installs missing toolboxes from official repositories
+%   - Sets up paths for cloned repositories
+%   - Provides clear status messages during execution
+
+%% Check and install ITA-Toolbox
+if ~itaToolboxInstalled()
+    disp('ITA-Toolbox not found. Installing from RWTH Aachen repository...');
+    
+    % Clone repository
+    itaRepo = 'https://git.rwth-aachen.de/ita/toolbox.git';
+    itaPath = fullfile(pwd, 'Toolboxes', 'ITA-Toolbox');
+    cloneRepository(itaRepo, itaPath);
+    
+    % Run setup
+    setupFile = fullfile(itaPath, 'ita_toolbox_setup.m');
+    if isfile(setupFile)
+        run(setupFile);
+        disp('ITA-Toolbox installed successfully.');
     else
-        run([pwd '/Toolboxes/ITA-Toolbox/ita_toolbox_setup.m'])
+        error('ITA-Toolbox setup file not found at: %s', setupFile);
     end
 end
 
-try
-    ls_dirs = [30 -30 0 110 -110]; % define a 2D 5.0 setup in degrees
-    ls_groups = findLsPairs(ls_dirs);
-catch e
-%     disp(e.message)
-   !git clone https://github.com/polarch/Vector-Base-Amplitude-Panning.git ./Toolboxes/polarch/vbap
+%% Check and install VBAP toolbox
+if ~vbapToolboxInstalled()
+    disp('VBAP toolbox not found. Installing from GitHub...');
+    vbapRepo = 'https://github.com/polarch/Vector-Base-Amplitude-Panning.git';
+    vbapPath = fullfile(pwd, 'Toolboxes', 'polarch', 'vbap');
+    cloneRepository(vbapRepo, vbapPath);
+    addpath(genpath(vbapPath));
+    disp('VBAP toolbox installed successfully.');
 end
 
-try
-    [~, ls_dirs4_rad] = platonicSolid('tetra');
-catch e
-%     disp(e.message)
-    clear ls_dirs
-   !git clone https://github.com/polarch/Higher-Order-Ambisonics.git ./Toolboxes/polarch/hoa
+%% Check and install HOA toolbox
+if ~hoaToolboxInstalled()
+    disp('HOA toolbox not found. Installing from GitHub...');
+    hoaRepo = 'https://github.com/polarch/Higher-Order-Ambisonics.git';
+    hoaPath = fullfile(pwd, 'Toolboxes', 'polarch', 'hoa');
+    cloneRepository(hoaRepo, hoaPath);
+    addpath(genpath(hoaPath));
+    disp('HOA toolbox installed successfully.');
 end
-    clear ls_dirs ls_dirs4_rad ls_groups e
-%% Could'nt find VADSHON repository. Downloaded from Imperial College
-%add to path
-addpath(genpath(pwd))
 
-disp('Required toolboxes installed')
+%% Final path update and cleanup
+addpath(genpath(pwd));
+disp('All required toolboxes are installed and available.');
+
+% ----------------- Helper Functions -----------------
+
+function installed = itaToolboxInstalled()
+    try
+        % Minimal check for ITA-Toolbox presence
+        itaAudio();
+        installed = true;
+    catch
+        installed = false;
+    end
+end
+
+function installed = vbapToolboxInstalled()
+    % Check for VBAP function
+    installed = exist('findLsPairs', 'file') == 2;
+end
+
+function installed = hoaToolboxInstalled()
+    % Check for HOA function
+    installed = exist('platonicSolid', 'file') == 2;
+end
+
+function cloneRepository(repoUrl, targetPath)
+    % Create parent directories if needed
+    [parentPath, ~] = fileparts(targetPath);
+    if ~isfolder(parentPath)
+        mkdir(parentPath);
+    end
+    
+    % Clone using system-independent command
+    if ispc
+        system(sprintf('git clone %s "%s"', repoUrl, targetPath));
+    else
+        system(sprintf('git clone %s ''%s''', repoUrl, targetPath));
+    end
+    
+    % Verify successful clone
+    if ~isfolder(targetPath)
+        error('Failed to clone repository to: %s', targetPath);
+    end
+end
 
 end

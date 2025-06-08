@@ -8,7 +8,7 @@
 %   - Configurable presentation angle, level, and source signal
 %
 % Required Toolboxes: ITA-Toolbox, polarch hoa, polarch vbap, and supporting functions
-% Updated: 2025-06-08
+% Updated: 08/06/2025
 %% Initialization
 addpath(genpath(pwd));      % Add all subdirectories to path
 setToolboxes;               % Initialize required toolboxes

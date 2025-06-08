@@ -1,4 +1,4 @@
-function [final_audio] = Iceberg_options(signal,DSER,LR,level,angle,configurationSetup)
+function [final_audio] = iceberg_options(signal,DSER,LR,level,angle,configurationSetup)
 iFs            = signal.samplingRate;
 VBAP_DSER_Part = itaAudio();
 Amb_ERLR_Part  = itaAudio();

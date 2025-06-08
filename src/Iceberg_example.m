@@ -2,7 +2,6 @@
 %This is an example on how to create an auralized file using a combination
 %of VBAP and Ambisonics. The IR is divided using Room Acoustics Center Time.
 %Three examples of RT were made available (0, 0.5, and 1.1 s)
-
 addpath(genpath(pwd))
 setToolboxes
 ccx % Clear all, clean all, close all :D
@@ -29,27 +28,27 @@ configurationSetup.wavFilesPath = wavFilesPath;
 % This script assumes the Glasgow (River Clyde room) with 24 LS and clockwise configuration:
 % (LS 1 is the backward one (180 degrees) / LS 13 is the frontal (0 degrees))
 
+TotalNumberOfLoudspeakers = 24;
+spaceBetweenLS = 360/TotalNumberOfLoudspeakers;
+
 Channel_1 =  180; %The back loudspeaker is connected to output number 1 of the sound card. 
 Channel_7 =  270; %The left loudspeaker is connected to output number 7 of the sound card. 
 Channel_13 = 000; %The front loudspeaker is connected to output number 13 of the sound card. 
 Channel_19 = 090; %The right loudspeaker is connected to output number 19 of the sound card. 
 
-TotalNumberOfLoudspeakers = 24;
-spaceBetweenLS = 360/TotalNumberOfLoudspeakers;
 % To be used in 4 LS Hybrid mode we need to specify the LS index numbers
 configurationSetup.ls_dir = [Channel_1 Channel_7 Channel_13 Channel_19; 0 0 0 0]'; 
-%Right LS is 90 Degrees / Left is 270
-configurationSetup.LSArray = [mod(Channel_1:spaceBetweenLS:360,360) spaceBetweenLS:spaceBetweenLS:(Channel_1-spaceBetweenLS)]'; %Clockwise configuration
-%[option]Right LS is 270 Degrees / Left is 90 counter = clockwise configuration
+%Right LS is 90 Degrees / Left is 270 %Clockwise configuration
+configurationSetup.LSArray = [mod(Channel_1:spaceBetweenLS:360,360) spaceBetweenLS:spaceBetweenLS:(Channel_1-spaceBetweenLS)]'; 
+%%[option] Right LS is 270 Degrees / Left is 90 counter = clockwise configuration
 % configurationSetup.LSArray = [mod(Channel_1:-spaceBetweenLS:0,360) (Channel_1-spaceBetweenLS):-spaceBetweenLS:spaceBetweenLS]';
 
 %% Select the reverberation time, Presentation angle, Presentation Level, and the Signal. 
-Selected_RT      = 1;          % 1 = 0.5 s | %2 = 1.1 s | %3 = 0.0 s
+Selected_RT      = 1;  % 1 = 0.5 s | %2 = 1.1 s | %3 = 0.0 s
 Selected_Angle   = 45; % 0:5:355
 Selected_Level   = 80; % dB SPL
 Selected_Signal  = 7;  % options 1 to 7 described in the 'signalOptions' function
 selectedSignal = signalOptions(Selected_Signal);
-
 
 %% Load the RIR (Odeon Simulations, can be any 1st order ambisonics)
 if Selected_RT == 1
@@ -60,22 +59,16 @@ elseif Selected_RT == 3
     selectRT = 'rt_00';
 end
 
-IR = ita_read([pwd sep 'wavFiles' sep selectRT sep 'BFormat1.Wav']);   %Load Ambisonics IR
+IR = ita_read([wavFilesPath sep selectRT sep 'BFormat1.Wav']);   %Load Ambisonics IR
 
 [DSER,LR] = iceberg_core(IR);
 
-[Signal_To_Run] = Iceberg_options(...
-selectedSignal,...
-DSER,...
-LR,...
-Selected_Level,...
-Selected_Angle,...
-configurationSetup);
+[iceberg_signal, VBAP_Part, Amb_Part] = iceberg_merge(selectedSignal, DSER, LR, ...
+           Selected_Level, Selected_Angle, configurationSetup);
 
-  
 %% Play the resulting file
 %Set you soundcard in ita_preferences first
-playPlain(Signal_To_Run)
+playPlain(iceberg_signal)
 
 %% Play function
 function playPlain(signal)
@@ -95,8 +88,3 @@ else
     playrec('play',signal_run.time,1:nCh);
 end
 end
-
-
-
-
-

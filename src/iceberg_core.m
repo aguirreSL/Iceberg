@@ -23,6 +23,8 @@ catch
     DSER = ita_time_shift(IR_Early,abs(shiftIndex));            % Push
     cTime = 0.01;
 end   
+
+
     %% Shift IR to the begining
     [IR_Late, shiftIndex] = ita_time_shift(IR,'auto');
     % Crop out the the Direc Sound+Early Reflections (Center Time) (May work

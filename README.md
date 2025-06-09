@@ -13,7 +13,8 @@ https://github.com/polarch/Vector-Base-Amplitude-Panning
 VADSOHN  
 
 ## Thesis:
-https://sergioaguirre.com/SergioAguirreThesis_MinorAmendments.pdf
+[Download Thesis (PDF)](https://eprints.nottingham.ac.uk/72207/1/SergioAguirre.pdf)
+
 5.2 Iceberg an Hybrid Auralization Method
 
 The Iceberg auralization method combines two well-known methods: VBAP and Ambisonics. In Chapter 3, VBAP and Ambisonics binaural cues were objectively evaluated. The VBAP method was found to render accurate cuesin the center position, even with a second listener inside the array. That corroborates the use of VBAP to increase tests’ ecological validity in auditorytests [134]. On the other hand, Ambisonics delivered less precise localization cues, imposing more restrictions on the listener’s position. The results are in line with literature presenting poor localization but high immersiveness from low-order Ambisonics [104, 105] and, conversely, lesser immersiveness and greater localization accuracy from VBAP [89, 104]. Therefore, the idea here is to provide an auralization that contains temporal and spectral features of the sounds encoded through VBAP while the spaciousness provided through the reverberation envelope is encoded through Ambisonics. This speciﬁc combination of auralization methods has also been considered to decrease the number of necessary loudspeakers for a setup that requires regular hearing devices. At the same time, the setup may allow some degree of head movement without the need for tracking equipment. That is a counter measure to overcome common limitations in ordinary auditory test spaces [316].

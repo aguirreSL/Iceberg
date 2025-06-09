@@ -1,16 +1,20 @@
-# Iceberg Auralization. 
 # Iceberg: A Loudspeaker-based Room Auralization Method for Auditory Research.
-![IMG_6583](https://github.com/aguirreSL/Iceberg/assets/61785053/f26b60c4-9369-4da8-a5e6-7194abb0f5cb)
+<img src="https://github.com/aguirreSL/Iceberg/assets/61785053/f26b60c4-9369-4da8-a5e6-7194abb0f5cb" width="350" alt="Iceberg Auralization">
 
-This is an example of usege of Iceberg auralization method.
+This is an example of usage of Iceberg auralization method.
 
-Dependent on the following toolboxes:
+### Start
+
+- You can use iceberg_example.m to generate and play a soung (edit to you loudspeaker setup). 
+- You can calibrate your setup with Calibration/calibration_LSRoom.m
+
+### Dependent on the following toolboxes:
 
 https://git.rwth-aachen.de/ita/toolbox  
 https://github.com/polarch/Higher-Order-Ambisonics  
 https://github.com/polarch/Spherical-Harmonic-Transform/tree/master  
 https://github.com/polarch/Vector-Base-Amplitude-Panning  
-VADSOHN  
+https://github.com/ImperialCollegeLondon/sap-voicebox.git
 
 ## Thesis:
 [Download Thesis (PDF)](https://eprints.nottingham.ac.uk/72207/1/SergioAguirre.pdf)

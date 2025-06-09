@@ -80,31 +80,28 @@ IR = ita_read(irFilePath);
 % 1. Get selected audio signal
 [signal, VBAP_DSER_Part, Amb_LR_Part] = signalOptions(Selected_Signal);
 
-% 1. Perform core Iceberg processing
+% 2. Perform core Iceberg processing
 [DSER, LR] = iceberg_core(IR);
-%%Vbap
-DSER_signal_conv = ita_convolve(signal,DSER);
 
-VBAP_DS    = iceberg_set_vbap(DSER_signal_conv,Selected_Angle,configurationSetup);
-% VBAP_DS     = calibrate_vbap(VBAP_Part,configurationSetup);
-% VBAP_DS   = VBAP_DS*max(DSER.time); 
+% 3. Vbap
+VBAP_DS    = iceberg_set_vbap(signal,DSER,Selected_Angle,configurationSetup);
+% VBAP_DS     = calibrate_vbap(VBAP_Part, DSER, configurationSetup);
 
-%%Ambisonics
-Ambisonics_ERLRSignal = iceberg_set_amb(signal, LR, configurationSetup);
-% Ambisonics_ERLRSignal = calibrate_ambisonics(Ambisonics_ERLRSignal,level,iAngles,configurationSetup)
-
+% 4. Ambisonics
+Ambisonics_ERLR = iceberg_set_amb(signal, LR, configurationSetup);
+% Ambisonics_ERLR = calibrate_ambisonics(Ambisonics_ERLR,level,iAngles,configurationSetup)
 
 %% fetch it to the Array
 for i = 1:length(activeLSNumbers)
     VBAP_DSER_Part.time(:,activeLSNumbers(i)) = VBAP_DS.time(:,i);
-    Amb_LR_Part.time(:,activeLSNumbers(i))    = Ambisonics_ERLRSignal.time(:,i);
+    Amb_LR_Part.time(:,activeLSNumbers(i))    = Ambisonics_ERLR.time(:,i);
 end
+iceberg_signal = ita_add(VBAP_DSER_Part, Amb_LR_Part); 
 
-%% Combine DS ER and LR
-iceberg_signal = ita_add(VBAP_DSER_Part, Amb_LR_Part);    
 if length(configurationSetup.LSArray) > iceberg_signal.dimensions
     iceberg_signal.time(:,iceberg_signal.dimensions+1:length(configurationSetup.LSArray))...
-        = zeros(iceberg_signal.nSamples,length(configurationSetup.LSArray)-(iceberg_signal.dimensions));
+        = zeros(iceberg_signal.nSamples,...
+        length(configurationSetup.LSArray)-(iceberg_signal.dimensions));
 end
 
 %% PLAYBACK

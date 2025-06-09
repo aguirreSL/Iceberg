@@ -1,4 +1,4 @@
-function [signal_vbap] = iceberg_set_vbap(signal,iAngle,configurationSetup)
+function [signal_vbap] = iceberg_set_vbap(signal, DSER, iAngle, configurationSetup)
 %% Define VBAP signal to the specific array using the most recent calibration
 %
 % [signalcalibrated] = iceberg_set_vbap(itaAudio,iAngle,configurationSetup)
@@ -9,15 +9,17 @@ function [signal_vbap] = iceberg_set_vbap(signal,iAngle,configurationSetup)
 
 %% Load values from the most recent calibration
 iFs = signal.samplingRate;                          %Sample Frequency
+signal = ita_convolve(signal, DSER);
+
 %% Prepare Signal
         signal_vbap = itaAudio();        %Empty itaAudio object
         signal_vbap.samplingRate = iFs;  %set FS (if you use other than 44.1 this step is essential)
         signal_vbap.fftDegree = log2(iFs*signal.trackLength); 
         for nSignalsIndex = 1:signal.nChannels
             signal_vector(nSignalsIndex,:,:) = ring_VBAP(...
-                iFs,signal.time(:,nSignalsIndex),iAngle(nSignalsIndex),configurationSetup);
-            signal_ita(nSignalsIndex)  = itaAudio(squeeze(signal_vector(nSignalsIndex,:,:)),iFs,'time');
-            signal_vbap = ita_add(signal_vbap,signal_ita(nSignalsIndex));
+                iFs,signal.time(:,nSignalsIndex), iAngle(nSignalsIndex), configurationSetup);
+            signal_ita(nSignalsIndex)  = itaAudio(squeeze(signal_vector(nSignalsIndex,:,:)), iFs, 'time');
+            signal_vbap = ita_add(signal_vbap, signal_ita(nSignalsIndex));
         end
 
 end

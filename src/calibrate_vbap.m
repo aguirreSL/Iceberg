@@ -1,6 +1,4 @@
-function calibrated_vbap = calibrate_vbap(signal_to_play,configurationSetup)
-%% 
-
+function calibrated_vbap = calibrate_vbap(signal_to_play, DSER,configurationSetup)
 %% Load values from the most recent calibration
 Level_Factor = configurationSetup.new_Level_Factor; %LS Level adjust
 iFs = signal.samplingRate;                          %Sample Frequency
@@ -114,5 +112,6 @@ for idx = 1:length(activeLSNumbers)
 end
 %%
 calibrated_vbap = signal_run_ita_FILTER_LEVEL;
+% calibrated_vbap   = VBAP_DS*max(DSER.time); 
 end
 

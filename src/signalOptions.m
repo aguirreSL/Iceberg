@@ -1,4 +1,4 @@
-function selectedSignal = signalOptions(Play_This_Signal)
+function [selectedSignal, VBAP_placeholder, Amb_placeholder] = signalOptions(Play_This_Signal)
 %% Signals (Here one can find some examples, you can define/import any signal) %%% 
 sampleFrequency = 44100; 
 lengthSignalSeconds = 3; % Seconds
@@ -38,5 +38,9 @@ switch Play_This_Signal
         %Pure tone 400 Hz 
         selectedSignal = ita_generate('sine',1,400,sampleFrequency,fftDegree);
 end
+VBAP_placeholder = itaAudio();
+VBAP_placeholder.samplingRate = sampleFrequency;
+Amb_placeholder  = itaAudio();
+Amb_placeholder.samplingRate = sampleFrequency;
 end
 

@@ -8,7 +8,7 @@
 %   - Configurable presentation angle, level, and source signal
 %
 % Required Toolboxes: ITA-Toolbox, polarch hoa, polarch vbap, and supporting functions
-% Updated: 08/06/2025
+% Updated: 09/06/2025
 %% Initialization
 addpath(genpath(pwd));      % Add all subdirectories to path
 setToolboxes;               % Initialize required toolboxes
@@ -45,14 +45,21 @@ angularSpacing = 360/TotalNumberOfLoudspeakers;
 
 % Define cardinal loudspeaker positions
 cardinalChannels = [1, 7, 13, 19];
-cardinalAngles = [180, 270, 0, 90];  % [Back, Left, Front, Right]
+cardinalAngles   = [180, 270, 0, 90]; % [Back, Left, Front, Right]
 configurationSetup.ls_dir = [cardinalAngles; zeros(1,4)]';
 
 % Generate loudspeaker positions starting from Channel 1 (180°)
-% Clockwise arrangement: 180° ? 195° ? ... ? 0° ? 15° ? ... ? 165°
+% Clockwise arrangement: 180° > 195° > ... > 0° > 15° > ... > 165°
 lsAnglesPart1 = mod(cardinalAngles(1):angularSpacing:360, 360);  % 180° to 360° (0°)
 lsAnglesPart2 = angularSpacing:angularSpacing:165;  % 15° to 165°
 configurationSetup.LSArray = [lsAnglesPart1, lsAnglesPart2]';
+
+activeLSNumbers = zeros(1,length(configurationSetup.ls_dir));
+
+for indexx= 1:length(configurationSetup.ls_dir)
+    iArrayP = find(configurationSetup.LSArray==configurationSetup.ls_dir(indexx,1),1);
+    activeLSNumbers(indexx) = iArrayP;
+end
 %% AURALIZATION PARAMETERS
 % Select processing options:
 Selected_RT      = 1;     % 1:0.5s, 2:1.1s, 3:0.0s
@@ -70,15 +77,33 @@ irFilePath = fullfile(wavFilesPath, selectedRT, 'BFormat1.wav');
 IR = ita_read(irFilePath);
        
 %% PROCESS SIGNAL
+% 1. Get selected audio signal
+[signal, VBAP_DSER_Part, Amb_LR_Part] = signalOptions(Selected_Signal);
+
 % 1. Perform core Iceberg processing
 [DSER, LR] = iceberg_core(IR);
+%%Vbap
+VBAP_DS    = iceberg_set_vbap(signal,Selected_Angle,configurationSetup);
+% VBAP_DS     = calibrate_vbap(VBAP_Part,configurationSetup);
+% VBAP_DS   = VBAP_DS*max(DSER.time); 
 
-% 2. Get selected audio signal
-selectedSignal = signalOptions(Selected_Signal);
+%%Ambisonics
+Ambisonics_ERLRSignal = iceberg_set_amb(signal, LR, configurationSetup);
+% Ambisonics_ERLRSignal = calibrate_ambisonics(Ambisonics_ERLRSignal,level,iAngles,configurationSetup)
 
-% 3. Generate hybrid VBAP/Ambisonics output
-[iceberg_signal, VBAP_Part, Amb_Part] = iceberg_merge(...
-    selectedSignal, DSER, LR, Selected_Level, Selected_Angle, configurationSetup);       
+
+%% fetch it to the Array
+for i = 1:length(activeLSNumbers)
+    VBAP_DSER_Part.time(:,activeLSNumbers(i)) = VBAP_DS.time(:,i);
+    Amb_LR_Part.time(:,activeLSNumbers(i))    = Ambisonics_ERLRSignal.time(:,i);
+end
+
+%% Combine DS ER and LR
+iceberg_signal = ita_add(VBAP_DSER_Part, Amb_LR_Part);    
+if length(configurationSetup.LSArray) > iceberg_signal.dimensions
+    iceberg_signal.time(:,iceberg_signal.dimensions+1:length(configurationSetup.LSArray))...
+        = zeros(iceberg_signal.nSamples,length(configurationSetup.LSArray)-(iceberg_signal.dimensions));
+end
 
 %% PLAYBACK
 playPlain(iceberg_signal,TotalNumberOfLoudspeakers)% Output to configured sound card
@@ -92,5 +117,4 @@ if playrec('isInitialised')==1
 end
     playrec('init', signal_run.samplingRate, playDeviceInfo.deviceID, recDeviceInfo.deviceID)
     playrec('play', signal_run.time,1:nCh);
-
 end

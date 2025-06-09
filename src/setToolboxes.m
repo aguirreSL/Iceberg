@@ -37,11 +37,20 @@ end
 %% Check and install HOA toolbox
 if ~hoaToolboxInstalled()
     disp('HOA toolbox not found. Installing from GitHub...');
-    hoaRepo = 'https://github.com/polarch/Higher-Order-Ambisonics.git';
+    hoaRepo = 'https://github.com/ImperialCollegeLondon/sap-voicebox.git';
     hoaPath = fullfile(pwd, 'Toolboxes', 'polarch', 'hoa');
     cloneRepository(hoaRepo, hoaPath);
     addpath(genpath(hoaPath));
     disp('HOA toolbox installed successfully.');
+end
+
+%% Check and install HOA toolbox
+if ~voiceboxToolboxInstalled()
+     voiceboxRepo = 'https://github.com/polarch/Higher-Order-Ambisonics.git';
+    voiceboxPath = fullfile(pwd, 'Toolboxes', 'sap-voicebox');
+    cloneRepository(voiceboxRepo, voiceboxPath);
+    addpath(genpath(voiceboxPath));
+    disp('sap-voicebox toolbox installed successfully.');
 end
 
 %% Final path update and cleanup
@@ -69,6 +78,13 @@ function installed = hoaToolboxInstalled()
     % Check for HOA function
     installed = exist('platonicSolid', 'file') == 2;
 end
+
+
+function installed = voiceboxToolboxInstalled()
+    % Check for HOA function
+    installed = exist('vadsohn', 'file') == 2;
+end
+
 
 function cloneRepository(repoUrl, targetPath)
     % Create parent directories if needed

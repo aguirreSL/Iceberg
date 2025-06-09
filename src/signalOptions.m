@@ -15,8 +15,8 @@ switch Play_This_Signal
     case 3
         %signal_3 LTASS - long-term average speech spectrum
         %     file = ita_read('HINT_Danish_Noise_Male1_Inf_new.wav');                       %importing the MALE speech signal 
-            file = ita_read('.\wavFiles\HINT_Danish_Noise_Female1_Inf_new.wav');             %importing the FEMALE speech signal
-            [vs,~]=vadsohn(file.time,file.samplingRate,'p');                                %Voice Active Detector
+            file    = ita_read(fullfile(pwd, 'wavFiles', 'HINT_Danish_Noise_Female1_Inf_new.wav'));             %importing the FEMALE speech signal
+            [vs,~]  = vadsohn(file.time,file.samplingRate,'p');                                %Voice Active Detector
             zeroing = [(vs'.*file.time(1:length(vs))'),0];                                  %Mute silent parts  
             file = itaAudio([nonzeros(zeroing);0],file.samplingRate,'time');                %ITA Audio
             smoothSignal        = ita_smooth_frequency(file);                             %Smoth signal (Frequency shape)   
@@ -33,7 +33,7 @@ switch Play_This_Signal
         selectedSignal = ita_generate('swenlinsweep',frequencyLimits,0.0,sampleFrequency,fftDegree);
     case 6
         % signal_6 ISTS International Speech Test Signal
-        selectedSignal = ita_read([pwd '\wavFiles\ISTS-V1.0_60s_16bit.wav']);
+        selectedSignal = ita_read(fullfile(pwd, 'wavFiles','ISTS-V1.0_60s_16bit.wav'));
     case 7
         %Pure tone 400 Hz 
         selectedSignal = ita_generate('sine',1,400,sampleFrequency,fftDegree);

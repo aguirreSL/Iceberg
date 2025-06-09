@@ -65,7 +65,7 @@ end
 Selected_RT      = 1;     % 1:0.5s, 2:1.1s, 3:0.0s
 Selected_Angle   = 45;    % Presentation angle [0-355°]
 Selected_Level   = 80;    % Output level [dB SPL]
-Selected_Signal  = 7;     % Source signal option (see signalOptions.m)
+Selected_Signal  = 3;     % Source signal option (see signalOptions.m)
 
 %% LOAD IMPULSE RESPONSE
 % Select corresponding reverberation time dataset

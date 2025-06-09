@@ -37,7 +37,7 @@ end
 %% Check and install HOA toolbox
 if ~hoaToolboxInstalled()
     disp('HOA toolbox not found. Installing from GitHub...');
-    hoaRepo = 'https://github.com/ImperialCollegeLondon/sap-voicebox.git';
+    hoaRepo = 'https://github.com/polarch/Higher-Order-Ambisonics.git';
     hoaPath = fullfile(pwd, 'Toolboxes', 'polarch', 'hoa');
     cloneRepository(hoaRepo, hoaPath);
     addpath(genpath(hoaPath));
@@ -46,7 +46,8 @@ end
 
 %% Check and install HOA toolbox
 if ~voiceboxToolboxInstalled()
-     voiceboxRepo = 'https://github.com/polarch/Higher-Order-Ambisonics.git';
+    disp('sap-voicebox toolbox not found. Installing from GitHub...');
+    voiceboxRepo = 'https://github.com/ImperialCollegeLondon/sap-voicebox.git';
     voiceboxPath = fullfile(pwd, 'Toolboxes', 'sap-voicebox');
     cloneRepository(voiceboxRepo, voiceboxPath);
     addpath(genpath(voiceboxPath));

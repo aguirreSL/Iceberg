@@ -83,7 +83,9 @@ IR = ita_read(irFilePath);
 % 1. Perform core Iceberg processing
 [DSER, LR] = iceberg_core(IR);
 %%Vbap
-VBAP_DS    = iceberg_set_vbap(signal,Selected_Angle,configurationSetup);
+DSER_signal_conv = ita_convolve(signal,DSER);
+
+VBAP_DS    = iceberg_set_vbap(DSER_signal_conv,Selected_Angle,configurationSetup);
 % VBAP_DS     = calibrate_vbap(VBAP_Part,configurationSetup);
 % VBAP_DS   = VBAP_DS*max(DSER.time); 
 

@@ -72,7 +72,7 @@ end
 signal_run_ita_dB = itaAudio(signal_run,iFs,'time');
 filtered = ita_multiply_spk(signal_run_ita_dB,frequencyFilter.ch(iChannel));
 signal_run_ita_FILTER.time(:,1) = filtered.time;
-signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(configurationSetup.new_Level_Factor(iChannel));
+signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(configurationSetup.newLevelFactor(iChannel));
 
 
 signalcalibrated = signal_run_ita_FILTER_LEVEL;

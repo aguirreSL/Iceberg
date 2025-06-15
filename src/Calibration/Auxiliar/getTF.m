@@ -1,12 +1,7 @@
-function [iLoudspeakerFreqFilter,UoN_RIR,UoN_RIR_adjusted] = getTF(iAverages,iFs,ifftDegree,inputChannel,iPlot)
+function [iLoudspeakerFreqFilter,rir,rirAdjusted] = getTF(iAverages,iFs,ifftDegree,inputChannel,iPlot)
 %% Room Impulse Response Eriksholm Anechoic Chamber
 % Microphone: B&K 1/2'' 4192 (Pressure field compensated) Vertically
 % oriented, if you use a free field mic, orient towards each sound source
-% Conversor AD/DA MOTU 24 Channels
-
-% Number of channels assigned to the new loudspeakers
-
-
 iLoudspeakerFreqFilter = itaResult();
 % Measurement parameters
 % iAverages = 2;
@@ -52,16 +47,17 @@ for iLoudspeaker = LS
     m.excitation = signal;
     %Run measurement to the selected loudspeaker
     if strcmp(iMode,'complete')
-        UoN_RIR_raw(iLoudspeaker) = m.run_raw;
-        UoN_RIR_Latency(iLoudspeaker) = m.run_latency;
-        UoN_RIR_BackgroundNoise = m.run_backgroundNoise;
-        UoN_RIR_SNR(iLoudspeaker) = m.run_snr;
-        UoN_RIR(iLoudspeaker) = m.run;
+        rirRaw(iLoudspeaker) = m.run_raw;
+        rirLatency(iLoudspeaker) = m.run_latency;
+        rirBackgroundNoise = m.run_backgroundNoise;
+        rirSNR(iLoudspeaker) = m.run_snr;
+        rir(iLoudspeaker) = m.run;
     else
-        UoN_RIR(iLoudspeaker) = m.run;
+        rir(iLoudspeaker) = m.run;
     end
     
-    % Get the RIR in 1/3 octave|Filter|Smooth Freq|Normalize|Invert
+    % Get the Room Impulse Response (RIR) in 
+    % 1/3 octave|Filter|Smooth Freq|Normalize|Invert
     
     
     RIR_third_octave_inverted = ita_spk2frequencybands(...
@@ -69,7 +65,7 @@ for iLoudspeaker = LS
         ita_normalize_spk(...
         ita_smooth_frequency(...
         ita_filter_bandpass(...
-        UoN_RIR(iLoudspeaker),...
+        rir(iLoudspeaker),...
         'upper',22627,'lower',20)...
         ))),'bandsperoctave',3,'freqRange',[50 22627]);
     
@@ -89,7 +85,7 @@ for iLoudspeaker = LS
     m.averages = 1;
     pause(2)
     %Run measurement again with adjusted individualized filter
-    UoN_RIR_adjusted(iLoudspeaker) = m.run;
+    rirAdjusted(iLoudspeaker) = m.run;
 
     %Reset the measurement
     
@@ -101,12 +97,12 @@ end
 %%
 if iPlot == 1
     for iLoudspeaker = LS
-        eval(['RIR_' num2str(iLoudspeaker) ' = ita_normalize_spk(ita_smooth_frequency(ita_filter_bandpass(UoN_RIR(' num2str(iLoudspeaker) '),''lower'' , 20,''upper'', 22050)));']);
+        eval(['rir' num2str(iLoudspeaker) ' = ita_normalize_spk(ita_smooth_frequency(ita_filter_bandpass(rir(' num2str(iLoudspeaker) '),''lower'' , 20,''upper'', 22050)));']);
     end
     
-    ita_plot_freq(merge(RIR_1,RIR_2,RIR_3,RIR_4,RIR_5,RIR_6,RIR_7,RIR_8,RIR_9,RIR_10,...
-        RIR_11,RIR_12,RIR_13,RIR_14,RIR_15,RIR_16,RIR_17,RIR_18,RIR_19,RIR_20,RIR_21,...
-        RIR_22,RIR_23,RIR_24))
+    ita_plot_freq(merge(rir1,rir2,rir3,rir4,rir5,rir6,rir7,rir8,rir9,rir10,...
+        rir11,rir12,rir13,rir14,rir15,rir16,rir17,rir18,rir19,rir20,rir21,...
+        rir22,rir23,rir24))
     
     %%
     ylim([-40 20])
@@ -127,12 +123,12 @@ if iPlot == 1
     line([50 50], [-20 6],'LineWidth',3,'Color',[1 0 0],'LineStyle','--');
     %%
     for iLoudspeaker = LS
-        eval(['RIR_' num2str(iLoudspeaker) ' = ita_normalize_spk(ita_smooth_frequency(ita_filter_bandpass(UoN_RIR_adjusted(' num2str(iLoudspeaker) '),''lower'' , 20,''upper'', 22050)));']);
+        eval(['rir' num2str(iLoudspeaker) ' = ita_normalize_spk(ita_smooth_frequency(ita_filter_bandpass(rirAdjusted(' num2str(iLoudspeaker) '),''lower'' , 20,''upper'', 22050)));']);
     end
     
-    ita_plot_freq(merge(RIR_1,RIR_2,RIR_3,RIR_4,RIR_5,RIR_6,RIR_7,RIR_8,RIR_9,RIR_10,...
-        RIR_11,RIR_12,RIR_13,RIR_14,RIR_15,RIR_16,RIR_17,RIR_18,RIR_19,RIR_20,RIR_21,...
-        RIR_22,RIR_23,RIR_24))
+    ita_plot_freq(merge(rir1,rir2,rir3,rir4,rir5,rir6,rir7,rir8,rir9,rir10,...
+        rir11,rir12,rir13,rir14,rir15,rir16,rir17,rir18,rir19,rir20,rir21,...
+        rir22,rir23,rir24))
     
     
     ylim([-40 20])

@@ -38,30 +38,26 @@ rtOptions = {'rt_05', 'rt_11', 'rt_00'};
 selectedRT = rtOptions{selectedRT};
 irFilePath = fullfile(wavFilesPath, selectedRT, 'BFormat1.wav');
 IR = ita_read(irFilePath);
-% Load calibration data (placeholder values)
-%You should run a calibration session to your specific setup
-calibrationFile = fullfile(calibrationPath, 'Current_Calibration.mat');
-load(calibrationFile, 'new_Level_Factor', 'iFactor', 'iLoudspeakerFreqFilter');
+% Load calibration data
+calibrationFile = fullfile(calibrationPath, 'currentCalibration.mat');
+load(calibrationFile, 'newLevelFactor', 'iFactor', 'iLoudspeakerFreqFilter');
 
 configSetup = struct(...
-    'new_Level_Factor', new_Level_Factor,...
+    'newLevelFactor', newLevelFactor,...
     'iFactor', iFactor,...
     'iLoudspeakerFreqFilter', iLoudspeakerFreqFilter,...
     'wavFilesPath', wavFilesPath);
 
-clear new_Level_Factor iFactor iLoudspeakerFreqFilter
+% clear new_Level_Factor iFactor iLoudspeakerFreqFilter
 
 %% ARRAY CONFIGURATION SETTINGS
 % Defines the channel-to-angle mapping for the loudspeaker array.
 % Current setup: Glasgow (River Clyde room) 24-loudspeaker circular array
 % - Array is arranged in clockwise configuration
-% - Channel 1:  180° (back)  |  - Channel  7:  270° (left)
-% - Channel 13:   0° (front) |  - Channel 19:   90°  (right)
 numberOfSpeakers = 24;
 configSetup.lsArray = [180,195,210,225,240,255,270,285,300,315,330,345,...
                             0,15,30,45,60,75,90,105,120,135,150,165];
-% Define 4 LS to be used by Iceberg
-configSetup.activeLSNumbers = [1, 7, 13, 19];
+configSetup.activeLSNumbers = [1, 7, 13, 19];% 4 LS to be used by Iceberg
 iceberglAngles           = [180, 270, 0, 90]; % [Back, Left, Front, Right]
 configSetup.ls_dir       = [iceberglAngles; zeros(1,4)]';
 

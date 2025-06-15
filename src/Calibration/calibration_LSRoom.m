@@ -57,7 +57,7 @@ iAverages = 3;
 iFs = 48000;
 iFFTDegree = 15;
 iPlot = 1;
-[iLoudspeakerFreqFilter,UoN_RIR,UoN_RIR_adjusted] = getTF(iAverages,iFs,iFFTDegree,inputChannel,iPlot);
+[iLoudspeakerFreqFilter,rir,rirAdjusted] = getTF(iAverages,iFs,iFFTDegree,inputChannel,iPlot);
 %% Align Loudspeakers to same reproduction level
 calConfig.nTolerance = 0.5;       % [dB]    Average
 calConfig.nIncrement = 0.5;       % [vFS]
@@ -67,8 +67,8 @@ calConfig.iChannel = inputChannel;
 calConfig.nLoudspeakers = nLoudspeakers;
 calConfig.level = 70;
 %% playrec('reset')
-[new_Level_Factor,old_Level_Factor] = getLevel(iFactor,iLoudspeakerFreqFilter,calConfig);
+[newLevelFactor,oldLevelFactor] = getLevel(iFactor,iLoudspeakerFreqFilter,calConfig);
 %%
 name = [day{1}];
-save(['Current_Calibration_' name], 'new_Level_Factor','iLoudspeakerFreqFilter','iFactor','UoN_RIR','UoN_RIR_adjusted' )
-save('Current_Calibration', 'new_Level_Factor','iLoudspeakerFreqFilter','iFactor','UoN_RIR','UoN_RIR_adjusted' )
+save(['currentCalibration_' name], 'newLevelFactor','iLoudspeakerFreqFilter','iFactor','rir','rirAdjusted' )
+save('current_Calibration', 'newLevelFactor','iLoudspeakerFreqFilter','iFactor','rir','rirAdjusted' )

@@ -3,6 +3,8 @@
 
 This is an example of usage of Iceberg auralization method.
 
+<img src="https://github.com/user-attachments/assets/919a9490-44fd-4640-aeec-b41d367de4e8" width="550" alt="Iceberg Flowchart">
+
 ### Start
 
 - You can use iceberg_example.m to generate and play a soung (edit to you loudspeaker setup). 

@@ -7,7 +7,7 @@ This is an example of usage of Iceberg auralization method.
 
 ### Start
 
-- You can use iceberg_example.m to generate and play a soung (edit to you loudspeaker setup). 
+- You can use iceberg_example.m to generate and play a soung (edit to your loudspeaker setup). 
 - You can calibrate your setup with Calibration/calibration_LSRoom.m
 
 ### Dependent on the following toolboxes:

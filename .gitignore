@@ -5,6 +5,10 @@
 *.m~
 
 /src/Toolboxes/
+/Toolboxes/
+tests/tests/
+tests/*.mat
+wavFiles/
 .DS_Store
 
 # Compiled MEX binaries (all platforms)

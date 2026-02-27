@@ -1,26 +1,39 @@
 function [signal_vbap] = iceberg_set_vbap(signal, DSER, iAngle, configurationSetup)
 %% Define VBAP signal to the specific array using the most recent calibration
 %
-% [signalcalibrated] = iceberg_set_vbap(itaAudio,iAngle,configurationSetup)
-% itaAudio each channel will be played at defined level and angle
+% [signalcalibrated] = iceberg_set_vbap(signalStruct,iAngle,configurationSetup)
+% signalStruct each channel will be played at defined level and angle
 % iAngle: Should be a vector as the same number of signal channels
 % Author: Sergio
-% Updated: 09/06/2025
 
 %% Load values from the most recent calibration
 iFs = signal.samplingRate;                          %Sample Frequency
-signal = ita_convolve(signal, DSER);
+signal = native_convolve(signal, DSER);
 
 %% Prepare Signal
-        signal_vbap = itaAudio();        %Empty itaAudio object
-        signal_vbap.samplingRate = iFs;  %set FS (if you use other than 44.1 this step is essential)
-        signal_vbap.fftDegree = log2(iFs*signal.trackLength); 
-        for nSignalsIndex = 1:signal.nChannels
-            signal_vector(nSignalsIndex,:,:) = ring_VBAP(...
-                iFs,signal.time(:,nSignalsIndex), iAngle(nSignalsIndex), configurationSetup);
-            signal_ita(nSignalsIndex)  = itaAudio(squeeze(signal_vector(nSignalsIndex,:,:)), iFs, 'time');
-            signal_vbap = ita_add(signal_vbap, signal_ita(nSignalsIndex));
-        end
+signal_vbap.samplingRate = iFs;  
+% native implementation of an empty cumulative signal
+signal_vbap.time = [];
+signal_vbap.nChannels = 0;
+
+for nSignalsIndex = 1:signal.nChannels
+    signal_vector(nSignalsIndex,:,:) = ring_VBAP(...
+        iFs,signal.time(:,nSignalsIndex), iAngle(nSignalsIndex), configurationSetup);
+    
+    % Prepare individual squeezed native structure
+    current_signal.time = squeeze(signal_vector(nSignalsIndex,:,:));
+    if isrow(current_signal.time)
+        current_signal.time = current_signal.time';
+    end
+    current_signal.samplingRate = iFs;
+    current_signal.nChannels = size(current_signal.time, 2);
+    
+    if isempty(signal_vbap.time)
+        signal_vbap = current_signal;
+    else
+        signal_vbap = native_add(signal_vbap, current_signal);
+    end
+end
 
 end
 

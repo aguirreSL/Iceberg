@@ -8,6 +8,7 @@
 /Toolboxes/
 tests/tests/
 tests/*.mat
+tests/Toolboxes/
 wavFiles/
 .DS_Store
 

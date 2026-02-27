@@ -19,12 +19,12 @@ switch Play_This_Signal
         whiteNoise = randn(nSamples, 1);
         % Apply 1/f filter in frequency domain
         N = length(whiteNoise);
-        freqBins = (1:floor(N/2))';
-        pinkFilter = 1 ./ sqrt(freqBins);
-        X = fft(whiteNoise);
-        X(2:floor(N/2)+1) = X(2:floor(N/2)+1) .* [pinkFilter; pinkFilter(end)];
-        X(floor(N/2)+2:end) = conj(flipud(X(2:floor(N/2))));
-        pinkNoise = real(ifft(X));
+        nFreq = floor(N/2);
+        Xpink = fft(whiteNoise);
+        pinkFilt = [1; 1./sqrt((1:nFreq-1)')];
+        Xpink(2:nFreq) = Xpink(2:nFreq) .* pinkFilt(2:end);
+        Xpink(nFreq+2:end) = conj(flipud(Xpink(2:nFreq)));
+        pinkNoise = real(ifft(Xpink));
         selectedSignal.time = pinkNoise;
         selectedSignal.samplingRate = sampleFrequency;
         selectedSignal.nSamples = nSamples;
@@ -70,17 +70,19 @@ switch Play_This_Signal
                 selectedSignal = LTASS;
             end
     case 4
-        % signal_4 Log sweep (native chirp replacement for ita_generate ccxsweep)
-        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        % signal_4 Log sweep (native chirp, length matches ITA's 2^ceil(fftDegree))
+        nSamples = 2^ceil(fftDegree);
+        sweepDuration = nSamples / sampleFrequency;
         t = (0:nSamples-1)' / sampleFrequency;
-        selectedSignal.time = chirp(t, frequencyLimits(1), lengthSignalSeconds, frequencyLimits(2), 'logarithmic');
+        selectedSignal.time = chirp(t, frequencyLimits(1), sweepDuration, frequencyLimits(2), 'logarithmic');
         selectedSignal.samplingRate = sampleFrequency;
         selectedSignal.nSamples = nSamples;
     case 5
-        % signal_5 Linear sweep (native chirp replacement for ita_generate swenlinsweep)
-        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        % signal_5 Linear sweep (native chirp, length matches ITA's 2^ceil(fftDegree))
+        nSamples = 2^ceil(fftDegree);
+        sweepDuration = nSamples / sampleFrequency;
         t = (0:nSamples-1)' / sampleFrequency;
-        selectedSignal.time = chirp(t, frequencyLimits(1), lengthSignalSeconds, frequencyLimits(2), 'linear');
+        selectedSignal.time = chirp(t, frequencyLimits(1), sweepDuration, frequencyLimits(2), 'linear');
         selectedSignal.samplingRate = sampleFrequency;
         selectedSignal.nSamples = nSamples;
     case 6

@@ -14,7 +14,8 @@ switch Play_This_Signal
         selectedSignal = ita_generate('pinknoise',1,sampleFrequency,fftDegree);
     case 3
         %signal_3 LTASS - long-term average speech spectrum
-            filePath = fullfile(pwd, 'wavFiles', 'HINT_Danish_Noise_Female1_Inf_new.wav');
+            projectRoot = fullfile(fileparts(mfilename('fullpath')), '..', '..');
+            filePath = fullfile(projectRoot, 'src', 'wavFiles', 'HINT_Danish_Noise_Female1_Inf_new.wav');
             [y, fs] = audioread(filePath);             %importing the FEMALE speech signal
             
             % Mocking voice activity detection & processing natively
@@ -58,7 +59,8 @@ switch Play_This_Signal
         selectedSignal = ita_generate('swenlinsweep',frequencyLimits,0.0,sampleFrequency,fftDegree);
     case 6
         % signal_6 ISTS International Speech Test Signal
-        selectedSignal = ita_read(fullfile(pwd, 'wavFiles','ISTS-V1.0_60s_16bit.wav'));
+        projectRoot = fullfile(fileparts(mfilename('fullpath')), '..', '..');
+        selectedSignal = ita_read(fullfile(projectRoot, 'src', 'wavFiles','ISTS-V1.0_60s_16bit.wav'));
     case 7
         %Pure tone 400 Hz 
         selectedSignal = ita_generate('sine',1,400,sampleFrequency,fftDegree);

@@ -18,10 +18,11 @@
 %   - ASIO-compatible sound card for multichannel playback
 
 %% Initialization
-addpath(genpath(pwd));      % Add all subdirectories to path
-setToolboxes;               % Initialize required toolboxes
-calibrationPath = fullfile(pwd, 'Calibration');
-wavFilesPath    = fullfile(pwd, 'wavFiles');
+projectRoot = fileparts(mfilename('fullpath'));
+addpath(genpath(projectRoot));  % Add all subdirectories to path
+setToolboxes;                   % Initialize required toolboxes
+calibrationPath = fullfile(projectRoot, 'src', 'calibration');
+wavFilesPath    = fullfile(projectRoot, 'src', 'wavFiles');
 
 %% AURALIZATION PARAMETERS
 selectedRT      = 1;     % 1:0.5s, 2:1.1s, 3:0.0s

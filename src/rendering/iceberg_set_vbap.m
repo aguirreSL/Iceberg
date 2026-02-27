@@ -10,6 +10,12 @@ function [signal_vbap] = iceberg_set_vbap(signal, DSER, iAngle, configurationSet
 iFs = signal.samplingRate;                          %Sample Frequency
 signal = native_convolve(signal, DSER);
 
+% If a single angle is provided for a multi-channel signal, replicate it
+% to all channels (same presentation angle for every channel)
+if isscalar(iAngle)
+    iAngle = repmat(iAngle, 1, signal.nChannels);
+end
+
 %% Prepare Signal
 signal_vbap.samplingRate = iFs;  
 % native implementation of an empty cumulative signal

@@ -4,6 +4,15 @@ function setToolboxes()
 %   - Installs missing toolboxes from official repositories
 %   - Sets up paths for cloned repositories
 %   - Provides clear status messages during execution
+%
+%   IMPORTANT: All toolboxes live in the single canonical folder at
+%   <project_root>/Toolboxes/. This function derives the project root from
+%   its own file location (src/utils/setToolboxes.m) so it works correctly
+%   regardless of MATLAB's current working directory (pwd).
+
+%% Derive project root from this file's location (src/utils/ -> project root)
+thisFileDir = fileparts(mfilename('fullpath'));
+projectRoot = fullfile(thisFileDir, '..', '..');
 
 %% Check and install ITA-Toolbox
 if ~itaToolboxInstalled()
@@ -11,7 +20,7 @@ if ~itaToolboxInstalled()
     
     % Clone repository
     itaRepo = 'https://git.rwth-aachen.de/ita/toolbox.git';
-    itaPath = fullfile(pwd, 'Toolboxes', 'ITA-Toolbox');
+    itaPath = fullfile(projectRoot, 'Toolboxes', 'ITA-Toolbox');
     cloneRepository(itaRepo, itaPath);
     
     % Run setup
@@ -28,7 +37,7 @@ end
 if ~vbapToolboxInstalled()
     disp('VBAP toolbox not found. Installing from GitHub...');
     vbapRepo = 'https://github.com/polarch/Vector-Base-Amplitude-Panning.git';
-    vbapPath = fullfile(pwd, 'Toolboxes', 'polarch', 'vbap');
+    vbapPath = fullfile(projectRoot, 'Toolboxes', 'polarch', 'vbap');
     cloneRepository(vbapRepo, vbapPath);
     addpath(genpath(vbapPath));
     disp('VBAP toolbox installed successfully.');
@@ -38,24 +47,25 @@ end
 if ~hoaToolboxInstalled()
     disp('HOA toolbox not found. Installing from GitHub...');
     hoaRepo = 'https://github.com/polarch/Higher-Order-Ambisonics.git';
-    hoaPath = fullfile(pwd, 'Toolboxes', 'polarch', 'hoa');
+    hoaPath = fullfile(projectRoot, 'Toolboxes', 'polarch', 'hoa');
     cloneRepository(hoaRepo, hoaPath);
     addpath(genpath(hoaPath));
     disp('HOA toolbox installed successfully.');
 end
 
-%% Check and install HOA toolbox
+%% Check and install sap-voicebox toolbox
 if ~voiceboxToolboxInstalled()
     disp('sap-voicebox toolbox not found. Installing from GitHub...');
     voiceboxRepo = 'https://github.com/ImperialCollegeLondon/sap-voicebox.git';
-    voiceboxPath = fullfile(pwd, 'Toolboxes', 'sap-voicebox');
+    voiceboxPath = fullfile(projectRoot, 'Toolboxes', 'sap-voicebox');
     cloneRepository(voiceboxRepo, voiceboxPath);
     addpath(genpath(voiceboxPath));
     disp('sap-voicebox toolbox installed successfully.');
 end
 
-%% Final path update and cleanup
-addpath(genpath(pwd));
+%% Final path update
+addpath(genpath(fullfile(projectRoot, 'Toolboxes')));
+addpath(genpath(fullfile(projectRoot, 'src')));
 disp('All required toolboxes are installed and available.');
 
 % ----------------- Helper Functions -----------------

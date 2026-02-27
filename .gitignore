@@ -6,7 +6,7 @@
 
 /src/Toolboxes/
 /Toolboxes/
-tests/tests/
+tests/reports/
 tests/*.mat
 tests/Toolboxes/
 wavFiles/

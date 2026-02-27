@@ -19,7 +19,7 @@ runner = TestRunner.withTextOutput;
 runner.addPlugin(DiagnosticsRecordingPlugin);
 
 % Create dedicated reports directory
-reportFolder = fullfile(pwd, 'tests', 'reports');
+reportFolder = fullfile(fileparts(mfilename('fullpath')), 'reports');
 if ~exist(reportFolder, 'dir')
     mkdir(reportFolder);
 end

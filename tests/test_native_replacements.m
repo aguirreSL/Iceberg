@@ -12,9 +12,10 @@ classdef test_native_replacements < matlab.unittest.TestCase
     
     methods(TestMethodSetup)
         function loadGroundTruth(testCase)
-            % Initialize paths and tools
-            addpath(genpath(fullfile(pwd, 'src')));
-            addpath(genpath(fullfile(pwd, 'Toolboxes')));
+            % Initialize paths relative to project root (tests/ -> project root)
+            projectRoot = fullfile(fileparts(mfilename('fullpath')), '..');
+            addpath(genpath(fullfile(projectRoot, 'src')));
+            addpath(genpath(fullfile(projectRoot, 'Toolboxes')));
             try
                 setToolboxes();
             catch

@@ -24,7 +24,9 @@ for iCount = activeLSNumbers
         iLoudspeakerFreqFilter(iCount).freq,signal_to_play.freqVector);
 end
 
-frequencyFilter = itaAudio(Interpolation,iFs,'freq');
+% Native struct for frequency filter (replaces itaAudio freq-domain constructor)
+frequencyFilter.freq = Interpolation;
+frequencyFilter.samplingRate = iFs;
 
 %% Select the filter fo the audio according to the LS (Virtual Loudspeakers are filtered with the Nearest Speaker NSP)
 % This is to fit level the ambisonics audio part
@@ -54,8 +56,11 @@ elseif iAngles >= 0 && iAngles <= 90
     end
 end
 
-signal_run_ita_FILTER       = itaAudio(zeros(length(signal_to_play.time),1),iFs,'time');
-signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal_to_play.time),1),iFs,'time');
+% Native struct to hold filtered/leveled output (replaces itaAudio time-domain constructor)
+signal_run_FILTER.time = zeros(length(signal_to_play.time), 1);
+signal_run_FILTER.samplingRate = iFs;
+signal_run_FILTER_LEVEL.time = zeros(length(signal_to_play.time), 1);
+signal_run_FILTER_LEVEL.samplingRate = iFs;
 
 if isnan(signal_to_play.time) 
     new_page(:,1) = 0;
@@ -69,13 +74,19 @@ if level ~= 'n' %Verify this
 else
     signal_run(:,1)= signal_to_play.time;
 end
-signal_run_ita_dB = itaAudio(signal_run,iFs,'time');
-filtered = ita_multiply_spk(signal_run_ita_dB,frequencyFilter.ch(iChannel));
-signal_run_ita_FILTER.time(:,1) = filtered.time;
-signal_run_ita_FILTER_LEVEL.time(:,1) = signal_run_ita_FILTER.time.*(configurationSetup.newLevelFactor(iChannel));
+% Native spectral multiplication (replaces ita_multiply_spk)
+% Multiply signal spectrum by frequency filter in freq domain
+sigRunFFT = fft(signal_run);
+filterResp = frequencyFilter.freq(:, iChannel);
+if length(filterResp) ~= length(sigRunFFT)
+    filterResp = interp1(linspace(0,1,length(filterResp)), filterResp, linspace(0,1,length(sigRunFFT))).';
+end
+filtered = real(ifft(sigRunFFT .* filterResp));
+signal_run_FILTER.time(:,1) = filtered;
+signal_run_FILTER_LEVEL.time(:,1) = signal_run_FILTER.time .* (configurationSetup.newLevelFactor(iChannel));
 
 
-signalcalibrated = signal_run_ita_FILTER_LEVEL;
+signalcalibrated = signal_run_FILTER_LEVEL;
 
 
 end

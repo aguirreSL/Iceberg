@@ -8,10 +8,27 @@ frequencyLimits = [20 20000]; %Check Frequency response from your loudspeakers
 switch Play_This_Signal
     case 1
         % signal_1 White Noise
-        selectedSignal = ita_generate('whitenoise',1,sampleFrequency,fftDegree);        
+        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        selectedSignal.time = randn(nSamples, 1);
+        selectedSignal.samplingRate = sampleFrequency;
+        selectedSignal.nSamples = nSamples;
+        selectedSignal = native_normalize_dat(selectedSignal);
     case 2
-        % signal_2 Pink Noise
-        selectedSignal = ita_generate('pinknoise',1,sampleFrequency,fftDegree);
+        % signal_2 Pink Noise (1/f spectral shaping of white noise)
+        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        whiteNoise = randn(nSamples, 1);
+        % Apply 1/f filter in frequency domain
+        N = length(whiteNoise);
+        freqBins = (1:floor(N/2))';
+        pinkFilter = 1 ./ sqrt(freqBins);
+        X = fft(whiteNoise);
+        X(2:floor(N/2)+1) = X(2:floor(N/2)+1) .* [pinkFilter; pinkFilter(end)];
+        X(floor(N/2)+2:end) = conj(flipud(X(2:floor(N/2))));
+        pinkNoise = real(ifft(X));
+        selectedSignal.time = pinkNoise;
+        selectedSignal.samplingRate = sampleFrequency;
+        selectedSignal.nSamples = nSamples;
+        selectedSignal = native_normalize_dat(selectedSignal);
     case 3
         %signal_3 LTASS - long-term average speech spectrum
             projectRoot = fullfile(fileparts(mfilename('fullpath')), '..', '..');
@@ -52,18 +69,35 @@ switch Play_This_Signal
             else
                 selectedSignal = LTASS;
             end
-        % signal_4 Log sweep
-        selectedSignal = ita_generate('ccxsweep',frequencyLimits,sampleFrequency,fftDegree);
+    case 4
+        % signal_4 Log sweep (native chirp replacement for ita_generate ccxsweep)
+        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        t = (0:nSamples-1)' / sampleFrequency;
+        selectedSignal.time = chirp(t, frequencyLimits(1), lengthSignalSeconds, frequencyLimits(2), 'logarithmic');
+        selectedSignal.samplingRate = sampleFrequency;
+        selectedSignal.nSamples = nSamples;
     case 5
-        % signal_5 Linear sweep
-        selectedSignal = ita_generate('swenlinsweep',frequencyLimits,0.0,sampleFrequency,fftDegree);
+        % signal_5 Linear sweep (native chirp replacement for ita_generate swenlinsweep)
+        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        t = (0:nSamples-1)' / sampleFrequency;
+        selectedSignal.time = chirp(t, frequencyLimits(1), lengthSignalSeconds, frequencyLimits(2), 'linear');
+        selectedSignal.samplingRate = sampleFrequency;
+        selectedSignal.nSamples = nSamples;
     case 6
-        % signal_6 ISTS International Speech Test Signal
+        % signal_6 ISTS International Speech Test Signal (native audioread)
         projectRoot = fullfile(fileparts(mfilename('fullpath')), '..', '..');
-        selectedSignal = ita_read(fullfile(projectRoot, 'src', 'wavFiles','ISTS-V1.0_60s_16bit.wav'));
+        istPath = fullfile(projectRoot, 'src', 'wavFiles','ISTS-V1.0_60s_16bit.wav');
+        [istData, istFs] = audioread(istPath);
+        selectedSignal.time = istData;
+        selectedSignal.samplingRate = istFs;
+        selectedSignal.nSamples = size(istData, 1);
     case 7
-        %Pure tone 400 Hz 
-        selectedSignal = ita_generate('sine',1,400,sampleFrequency,fftDegree);
+        % Pure tone 400 Hz
+        nSamples = round(lengthSignalSeconds * sampleFrequency);
+        t = (0:nSamples-1)' / sampleFrequency;
+        selectedSignal.time = sin(2 * pi * 400 * t);
+        selectedSignal.samplingRate = sampleFrequency;
+        selectedSignal.nSamples = nSamples;
 end
 
 end

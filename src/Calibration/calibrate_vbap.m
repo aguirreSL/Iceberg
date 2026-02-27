@@ -14,7 +14,9 @@ for iCount = activeLSNumbers
         configurationSetup.iLoudspeakerFreqFilter(iCount).freq,signal_to_play.freqVector);
 end
 
-frequencyFilter = itaAudio(Interpolation,iFs,'freq');
+% Native struct for frequency filter (replaces itaAudio freq-domain constructor)
+frequencyFilter.freq = Interpolation;
+frequencyFilter.samplingRate = iFs;
 
 %% 
 new_page = zeros(length(signal_to_play.time),length(activeLSNumbers));
@@ -84,8 +86,11 @@ if level ~= 'n'
         end
     end
 end
-signal_run_ita_FILTER       = itaAudio(zeros(length(signal_to_play.time),length(activeLSNumbers)),iFs,'time');
-signal_run_ita_FILTER_LEVEL = itaAudio(zeros(length(signal_to_play.time),length(activeLSNumbers)),iFs,'time');
+% Native struct to hold filtered/leveled output (replaces itaAudio time-domain constructor)
+signal_run_FILTER.time = zeros(length(signal_to_play.time), length(activeLSNumbers));
+signal_run_FILTER.samplingRate = iFs;
+signal_run_FILTER_LEVEL.time = zeros(length(signal_to_play.time), length(activeLSNumbers));
+signal_run_FILTER_LEVEL.samplingRate = iFs;
 
 %% What is happening here?
 for idx = 1:length(activeLSNumbers)
@@ -105,13 +110,18 @@ for idx = 1:length(activeLSNumbers)
 %     else
 %         signal_run(:,idx)= signal_to_play.ch(idx).time; 
 %     end
-    signal_run_ita_dB = itaAudio(signal_run,iFs,'time');
-    filtered = ita_multiply_spk(signal_run_ita_dB.ch(idx),frequencyFilter.ch(activeLSNumbers(idx)));
-    signal_run_ita_FILTER.time(:,idx) = filtered.time;
-    signal_run_ita_FILTER_LEVEL.time(:,idx) = signal_run_ita_FILTER.ch(idx).time.*(Level_Factor(activeLSNumbers(idx)));
+    % Native spectral multiplication (replaces ita_multiply_spk)
+    sigRunChFFT = fft(signal_run(:, idx));
+    filterResp = frequencyFilter.freq(:, activeLSNumbers(idx));
+    if length(filterResp) ~= length(sigRunChFFT)
+        filterResp = interp1(linspace(0,1,length(filterResp)), filterResp, linspace(0,1,length(sigRunChFFT))).';
+    end
+    filtered = real(ifft(sigRunChFFT .* filterResp));
+    signal_run_FILTER.time(:,idx) = filtered;
+    signal_run_FILTER_LEVEL.time(:,idx) = signal_run_FILTER.time(:,idx) .* (Level_Factor(activeLSNumbers(idx)));
 end
 %%
-calibrated_vbap = signal_run_ita_FILTER_LEVEL;
+calibrated_vbap = signal_run_FILTER_LEVEL;
 % calibrated_vbap   = VBAP_DS*max(DSER.time); 
 end
 

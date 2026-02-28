@@ -1,42 +1,70 @@
-# Iceberg: A Loudspeaker-based Room Auralization Method for Auditory Research.
-<img src="https://github.com/aguirreSL/Iceberg/assets/61785053/f26b60c4-9369-4da8-a5e6-7194abb0f5cb" width="350" alt="Iceberg Auralization">
+# Iceberg: Hybrid Auralization for Minimalist Setups
 
-This is an example of usage of Iceberg auralization method.
 
-<img src="https://github.com/user-attachments/assets/919a9490-44fd-4640-aeec-b41d367de4e8" width="550" alt="Iceberg Flowchart">
+**Iceberg** is a hybrid spatial audio engine designed to deliver clinical-grade virtualization using minimal hardware. By merging the localization precision of **VBAP** with the immersion of **Ambisonics**, Iceberg allows researchers to create realistic, "ecological" acoustic environments with as few as four loudspeakers.
 
-### Start
+<img width="1408" height="768" alt="Iceberg" src="https://github.com/user-attachments/assets/414c3aa9-826e-40bd-be7d-374b7da9e78c" />
 
-- You can use iceberg_example.m to generate and play a soung (edit to your loudspeaker setup). 
-- You can calibrate your setup with Calibration/calibration_LSRoom.m
 
-### Dependent on the following toolboxes:
+<img src="https://github.com/aguirreSL/Iceberg/assets/61785053/f26b60c4-9369-4da8-a5e6-7194abb0f5cb" width="350" alt="Iceberg Auralization"><img src="https://github.com/user-attachments/assets/919a9490-44fd-4640-aeec-b41d367de4e8" width="550" alt="Iceberg Flowchart">
 
-https://git.rwth-aachen.de/ita/toolbox  
-https://github.com/polarch/Higher-Order-Ambisonics  
-https://github.com/polarch/Spherical-Harmonic-Transform/tree/master  
-https://github.com/polarch/Vector-Base-Amplitude-Panning  
-https://github.com/ImperialCollegeLondon/sap-voicebox.git
+---
 
-## Thesis:
-[Download Thesis (PDF)](https://eprints.nottingham.ac.uk/72207/1/SergioAguirre.pdf)
+## The Problem
+Individuals with hearing loss struggle in noisy, social environments. Testing their performance in these scenarios usually demands a complex laboratory. Standard virtualization methods like Ambisonics or VBAP have trade-offs. Ambisonics offers great immersion but lacks sharp localization at low orders. VBAP provides precise directionality but often lacks the "feel" or spaciousness of a real room.
 
-5.2 Iceberg an Hybrid Auralization Method
+## The Solution
+Iceberg combines the strengths of both. It splits the Room Impulse Response (RIR) into two distinct parts:
 
-The Iceberg auralization method combines two well-known methods: VBAP and Ambisonics. 
+1.  **Localization (Direct Sounde and Early Part):** Handled by **VBAP**. This ensures the listener can pinpoint exactly where a sound starts.
+2.  **Immersion (Late Part):** Handled by **Ambisonics**. This provides the lush, reverberant "feel" of a real room.
 
-In Chapter 3 of the thesis, VBAP and Ambisonics binaural cues were objectively evaluated. The VBAP method was found to render accurate cuesin the center position, even with a second listener inside the array. That corroborates the use of VBAP to increase tests’ ecological validity in auditorytests [134]. On the other hand, Ambisonics delivered less precise localization cues, imposing more restrictions on the listener’s position. 
+The transition point isn't arbitrary. Iceberg uses **Center Time ($T_s$)** to find the ideal moment to switch from one method to the other.
 
-The results are in line with literature presenting poor localization but high immersiveness from low-order Ambisonics [104, 105] and, conversely, lesser immersiveness and greater localization accuracy from VBAP [89, 104]. Therefore, the idea here is to provide an auralization that contains temporal and spectral features of the sounds encoded through VBAP while the spaciousness provided through the reverberation envelope is encoded through Ambisonics. 
 
-This speciﬁc combination of auralization methods has also been considered to decrease the number of necessary loudspeakers for a setup that requires regular hearing devices. At the same time, the setup may allow some degree of head movement without the need for tracking equipment. That is a counter measure to overcome common limitations in ordinary auditory test spaces [316].
 
-[89] Gandemer, L., Parseihian, G., Bourdin, C., and Kronland-Martinet, R.(2018). Perception of Surrounding Sound Source Trajectories in the Horizontal Plane: A Comparison of VBAP and Basic-Decoded HOA. Acta Acustica united with Acustica, pages 338–350.
+---
 
-[104] Guastavino, C. and Katz, B. F. G. (2004). Perceptual evaluation of multi-dimensional spatial audio reproduction. The Journal of the AcousticalSociety of America, 116:1105–1115.
+## Key Features
+* **Minimal Hardware:** Optimized for small reproduction systems (4+ speakers).
+* **Dual-Listener Support:** Validated for up to two participants without losing spatial accuracy.
+* **Clinically Validated:** Proven effective in speech-in-noise tasks involving both normal-hearing and hearing-aided participants.
+* **High Accuracy:** Maintains localization cues within a 30° ambiguity angle in the horizontal plane.
 
-[105] Guastavino, C., Larcher, V., Catusseau, G., and Boussard, P. (2007).Spatial audio quality evaluation: comparing transaural, ambisonics and stereo. In Proceedings of the 13th International Conference on Auditory Display. Montreal Canada. Georgia Institute of Technology.
+## How it Works
+The system uses MATLAB to process signals through a calibrated setup. By using $T_s$ to divide the impulse response, the early reflections that dictate spatial origin are panned precisely. The remaining energy is encoded via first-order Ambisonics to fill the room.
 
-[134] Keidser, G., Naylor, G., Brungart, D. S., Caduﬀ, A., Campos, J., Carlile,S., Carpenter, M. G., Grimm, G., Hohmann, V., Holube, I., Launer, S.,Lunner, T., Mehra, R., Rapport, F., Slaney, M., and Smeds, K. (2020). The quest for ecological validity in hearing science: what it is, why it matters,and how to advance it. Ear and Hearing, 41(S1):5S–19S.
 
-[316] Zapata Rodriguez, V., Jeong, C.-H., Hoﬀmann, I., Cho, W.-H., Beldam,M.-B., and Harte, J. (2019). Acoustic conditions of clinic rooms for soundﬁeld audiometry. In Proceedings of 23rd International Congress on Acoustics, pages 4654–59. Deutsche Gesellschaft fur Akustik. 23rd International Congress on Acoustics , ICA 2019 ; Conference date: 09-09-2019 Through 13-09-2019.
+
+---
+
+## Quick Start (For Developers)
+
+### 1. Prerequisites
+This project requires MATLAB and several specialized toolboxes. Ensure the following are in your path:
+* [ITA Toolbox](https://git.rwth-aachen.de/ita/toolbox)
+* [Higher-Order-Ambisonics](https://github.com/polarch/Higher-Order-Ambisonics)
+* [Spherical-Harmonic-Transform](https://github.com/polarch/Spherical-Harmonic-Transform/tree/master)
+* [Vector-Base-Amplitude-Panning](https://github.com/polarch/Vector-Base-Amplitude-Panning)
+* [SAP Voicebox](https://github.com/ImperialCollegeLondon/sap-voicebox.git)
+
+### 2. Implementation
+* **Calibration:** Navigate to `/Calibration` and run `calibration_LSRoom.m`. Update this with your specific loudspeaker coordinates.
+* **Generate Audio:** Run `iceberg_example.m` to see how to take a dry signal and an RIR to create a spatialized output.
+
+---
+
+## Thesis & Research
+This method was developed as part of a deep dive into listening effort and virtualization. 
+[**Download the full Thesis (PDF)**](https://eprints.nottingham.ac.uk/72207/1/SergioAguirre.pdf)
+
+### Key Chapters
+* **Chapter 3: Binaural Cue Distortions** – A comparison of VBAP and Ambisonics through a calibrated setup, examining spatial distortions and the impact on a second listener.
+* **Chapter 4: Behavioral Study** – An investigation into how signal-to-noise ratio (SNR) and reverberation impact listening effort, using EEG and subjective questionnaires.
+* **Chapter 5: The Iceberg Method** – The formal proposal and evaluation of the hybrid method using objective parameters and hearing aid verification.
+
+### Core Findings
+* **Center Time ($T_s$):** Successfully identifies the transition point between early and late reflections to split impulse responses.
+* **Immersion vs. Accuracy:** The hybrid method matches the localization accuracy of VBAP while maintaining the sense of immersion typically only found in Ambisonics.
+* **Clinical Viability:** The setup provides reliable binaural cues within a 30° ambiguity angle, making it suitable for audiological tests in smaller clinic rooms.
+

@@ -1,157 +1,136 @@
 function [ newLevelFactor , oldLevelFactor] = getLevel(iFactor,iLoudspeakerFreqFilter,calConfig)
+[~, playDeviceInfo] = ita_portaudio_deviceID2string(ita_preferences('playDeviceID'));
+[~, recDeviceInfo] = ita_portaudio_deviceID2string(ita_preferences('recDeviceID'));
+calConfig.playDeviceID = playDeviceInfo.deviceID;
+calConfig.recDeviceID = recDeviceInfo.deviceID;
 
 calConfig.upperFreq = 20000;
 calConfig.lowerFreq = 60;
 try load('currentCalibration.mat', 'newLevelFactor');
-catch 
-    error (sprintf('Calibration file not found, copy ''currentCalibration'' to %s',pwd))
+catch error (sprintf('Calibration file not found, copy ''currentCalibration'' to %s',pwd))
 end
 oldLevelFactor = newLevelFactor; %Store last
 calConfig.iFs = 48000;            
 calConfig.lsdBperVolt = (20*log10((iFactor)/2e-5));
 calConfig.iFactor = iFactor;
-
-% Filter designs to replace ITA bandpass
-[b_bp, a_bp] = butter(4, [calConfig.lowerFreq calConfig.upperFreq]/(calConfig.iFs/2), 'bandpass');
+% max_safe_voltage =  10.^((max_safe_level-lsdBperVolt+20)./20);
 
 if calConfig.excitation_signal == 1
-    t_sweep = (0:1/calConfig.iFs:2^16/calConfig.iFs - 1/calConfig.iFs)';
-    signalToPlayData = chirp(t_sweep, calConfig.lowerFreq, t_sweep(end), calConfig.upperFreq, 'linear');
+    signalToPlay = ita_generate('swenlinsweep',[calConfig.lowerFreq calConfig.upperFreq],0.1,calConfig.iFs,16);
 elseif calConfig.excitation_signal == 2
-    signalToPlayData = randn(2^16, 1); % Approximating pink noise with white for native mock
-    
-    % Native approx of ita_time_window fading in
-    fadeOutLen = floor(0.02 * calConfig.iFs);
-    win = hann(2*fadeOutLen);
-    fade = win(1:fadeOutLen);
-    signalToPlayData(end-fadeOutLen+1:end) = signalToPlayData(end-fadeOutLen+1:end) .* flipud(fade);
-    
-    signalToPlayData = filter(b_bp, a_bp, signalToPlayData);
+    signalToPlay = ita_generate('pinknoise',1,calConfig.iFs,16);
+    signalToPlay = ita_time_window(signalToPlay,[0.02 0],'time');
+    signalToPlay = ita_filter_bandpass(signalToPlay,'upper',calConfig.upperFreq,'lower',calConfig.lowerFreq);
 
 elseif calConfig.excitation_signal == 3
     %% LTASS
     % Add your wav file
-    [fileData, fileFs] = audioread(uigetfile({'.\Auxiliar\*.wav'},'Pick a file'));
-    fileData = resample(fileData, calConfig.iFs, fileFs);
-    
+    [filename, pathname] = uigetfile({'*.wav'}, 'Pick a file', fullfile('..', 'wavFiles', filesep));
+    file = ita_read(fullfile(pathname, filename));
+    % Or you can use this instead:
+    file = ita_resample(file,iFs);
     userAnswer = questdlg('Would you like crop the silent parts using VAD?', ...
         'Yes, please','No, thank you');
+    % VAD please, you can fine tune the VAD to your audio
     if strcmp(userAnswer,'Yes')
-        [vs,~] = vadsohn(fileData, calConfig.iFs, 'p');
-        zeroing = (vs .* fileData(1:length(vs)));
-        fileData = nonzeros(zeroing);
+        [vs,~]=vadsohn(file.time,iFs,'p');
+        zeroing = (vs'.*file.time(1:length(vs))');
+        file = itaAudio(nonzeros(zeroing),iFs,'time');
     end
-    
-    whiteNoiseSignal = randn(length(fileData), 1);
-    % Basic shaping placeholder (ITA used spectral multiply)
-    LTASS_time = whiteNoiseSignal .* fileData; 
-    LTASS_time = LTASS_time / max(abs(LTASS_time)); % Normalize
-    
+    smoothSignal        = ita_smooth_frequency(file);
+    whiteNoiseSignal    = ita_generate('noise',1,file.samplingRate,file.fftDegree);
+    % pink            = ita_generate('pinknoise',1,osinal.samplingRate,lengthSignal);
+    LTASS            = ita_multiply_spk(whiteNoiseSignal,smoothSignal);
+    LTASS            = ita_normalize_dat(LTASS);
+    %%
     prompt = 'What is the desired length in seconds? \n';
     lengthSignal = input(prompt);
-    reqSamples = floor(lengthSignal * calConfig.iFs);
-    while reqSamples >= length(LTASS_time)
+    while lengthSignal >= LTASS.trackLength
         prompt = 'What is the desired length in seconds? (it can not be larger than the original) \n';
-        reqSamples = floor(input(prompt) * calConfig.iFs);
+        lengthSignal = input(prompt);
     end
-    
-    signalToPlayData = LTASS_time(1:reqSamples);
-end
+    signalToPlay = ita_time_crop(LTASS,[0 lengthSignal],'time');
 
+
+end
 % Normalize input
-signalToPlayData = signalToPlayData / max(abs(signalToPlayData(:)));
-
-signalToPlay.time = signalToPlayData;
-signalToPlay.samplingRate = calConfig.iFs;
-
+signalToPlay = ita_normalize_dat(signalToPlay,'allchannels','true');
 for iCount = 1:calConfig.nLoudspeakers
-    freqVec = (0:length(signalToPlayData)-1) * (calConfig.iFs / length(signalToPlayData));
     Interpolation(:,iCount) = pchip(iLoudspeakerFreqFilter(iCount).freqVector,...
-        iLoudspeakerFreqFilter(iCount).freq, freqVec');
+        iLoudspeakerFreqFilter(iCount).freq,signalToPlay.freqVector);
 end
 
-% frequencyFilter as a matrix (channels in columns)
-frequencyFilter = Interpolation;
-
+%Transform filter in itaAudio
+% frequencyFilter = ita_time_window((itaAudio(Interpolation,iFs,'freq')),[0 0.4],'time','@hann');
+frequencyFilter = (itaAudio(Interpolation,calConfig.iFs,'freq'));
 %%
-calConfig.levelFactor(1:calConfig.nLoudspeakers) = abs(newLevelFactor(1:calConfig.nLoudspeakers));
+calConfig.levelFactor(1:calConfig.nLoudpeakers) = abs(newLevelFactor(1:calConfig.nLoudpeakers));
 
-for iLoudspeaker = 1:calConfig.nLoudspeakers
+for iLoudspeaker = 1:calConfig.nLoudpeakers
+
     for iRepeat = 1:calConfig.nAverage
-        ispl = iRecord(iLoudspeaker, signalToPlay, calConfig, frequencyFilter, b_bp, a_bp);
+
+        ispl = iRecord(iLoudspeaker,signalToPlay,calConfig,frequencyFilter);
         SPLrepeat(iLoudspeaker,iRepeat) = ispl;
         SPLaverage(iLoudspeaker) = mean(SPLrepeat(iLoudspeaker,(1:iRepeat)));
         fprintf('  LS = %i n = %i\nSPL %.2f [dB] average SPL %.2f [dB]\n\n',iLoudspeaker,iRepeat,ispl,SPLaverage(iLoudspeaker))
+
     end
 
+
     while SPLaverage(iLoudspeaker) > (calConfig.level + calConfig.nTolerance) || SPLaverage(iLoudspeaker) < (calConfig.level - calConfig.nTolerance)
-        if SPLaverage(iLoudspeaker) > (calConfig.level + calConfig.nTolerance)
-            calConfig.nIncrement = -abs(calConfig.nIncrement); % Decrease level
-        else
-            calConfig.nIncrement = abs(calConfig.nIncrement); % Increase level
-        end
+        
+        % Calculate exact gain needed
+        diff_dB = calConfig.level - SPLaverage(iLoudspeaker);
+        calConfig.levelFactor(iLoudspeaker) = calConfig.levelFactor(iLoudspeaker) * (10^(diff_dB/20));
+        
         for iRepeat = 1:calConfig.nAverage
-            calConfig.levelFactor(iLoudspeaker) = calConfig.levelFactor(iLoudspeaker) + calConfig.nIncrement;
-            ispl = iRecord(iLoudspeaker, signalToPlay, calConfig, frequencyFilter, b_bp, a_bp);
+            ispl = iRecord(iLoudspeaker,signalToPlay,calConfig,frequencyFilter);
             SPLrepeat(iLoudspeaker,iRepeat) = ispl;
             SPLaverage(iLoudspeaker) = mean(SPLrepeat(iLoudspeaker,(1:iRepeat)));
             fprintf('  LS = %i n = %i\nSPL %.2f [dB] average SPL %.2f [dB]\n\n',iLoudspeaker,iRepeat,ispl,SPLaverage(iLoudspeaker))
         end
     end
+
     pause(.5)
+
 end
 
 newLevelFactor = calConfig.levelFactor;
 end
 
-function ispl = iRecord(iLoudspeaker, signalToPlay, calConfig, frequencyFilter, b_bp, a_bp)
 
-    newPage = zeros(length(signalToPlay.time), 6);
-    newPage(:,iLoudspeaker) = signalToPlay.time;
-    scaler = (sqrt(mean(newPage(:,iLoudspeaker).^2)))*2;
-    stimulus = newPage(:,iLoudspeaker)./scaler; 
+function ispl = iRecord(iLoudspeaker,signalToPlay,calConfig,frequencyFilter)
 
-    %NPS dB Value Based on dB/V factor
-    signal_run = stimulus .* (10.^((calConfig.level - calConfig.lsdBperVolt)./20));
-    
-    % Native filtering in freq domain: Multiply signal FFT by interpolated filter
-    sig_fft = fft(signal_run);
-    reqLen = length(sig_fft);
-    filter_col = frequencyFilter(:, iLoudspeaker);
-    if length(filter_col) > reqLen
-        filter_col = filter_col(1:reqLen);
-    elseif length(filter_col) < reqLen
-        filter_col(end+1:reqLen) = filter_col(end);
-    end
-    filtered_sig = real(ifft(sig_fft .* filter_col));
-    
-    % Adjust sweep Level
-    filtered_sig = filtered_sig .* calConfig.levelFactor(iLoudspeaker);
-    
-    % native symmetric hann window at start/end
-    winLen = floor(0.05 * calConfig.iFs);
-    win = hann(2*winLen);
-    filtered_sig(1:winLen) = filtered_sig(1:winLen) .* win(1:winLen);
-    filtered_sig(end-winLen+1:end) = filtered_sig(end-winLen+1:end) .* win(winLen+1:end);
-    
-    filtered_sig = filter(b_bp, a_bp, filtered_sig);
+newPage = zeros(length(signalToPlay.time),6);
+newPage(:,iLoudspeaker) = signalToPlay.time;
+scaler = (sqrt(mean(newPage(:,iLoudspeaker).^2)))*2;
+stimulus = newPage(:,iLoudspeaker)./scaler; %2.5
+%NPS dB Value Based on dB/V factor
+signal_run = stimulus.*repmat(10.^((calConfig.level - calConfig.lsdBperVolt)./20),length(newPage(:,iLoudspeaker)),1);
+%add freq filter to sweep signal
+signal_run_ita_LEVEL = itaAudio(signal_run,calConfig.iFs,'time');
+selectedFilter = ita_split(frequencyFilter,iLoudspeaker);
+signal_run_ita_FILTER_LEVEL = ita_multiply_spk(signal_run_ita_LEVEL,selectedFilter);
+%Adjust sweep Level
+signal_run_ita_FILTER_LEVEL = signal_run_ita_FILTER_LEVEL.*calConfig.levelFactor(iLoudspeaker);
+signal_run_ita_FILTER_LEVEL = ita_time_window(signal_run_ita_FILTER_LEVEL,[0.05 0],'time','windowType', 'hann','symmetric','true');
+signal_run_ita_FILTER_LEVEL = ita_filter_bandpass(signal_run_ita_FILTER_LEVEL,'upper',calConfig.upperFreq,'lower',calConfig.lowerFreq);
 
-    newPage(:,iLoudspeaker) = filtered_sig;
-    
-    % Playrec requires device IDs if set by ITA, but ITA is removed.
-    % We will mock the playrec output here since the physical testbed is usually strictly tied to the audio device.
-    disp('Warning: Mocking playrec record output as native implementation lacks exact hardware IDs');
-    recording = filtered_sig; 
-    
-    % Post process recording
-    recordedSignal = recording;
-    recordedSignal(1:winLen) = recordedSignal(1:winLen) .* win(1:winLen);
-    recordedSignal(end-winLen+1:end) = recordedSignal(end-winLen+1:end) .* win(winLen+1:end);
-    
-    recordedSignal = filter(b_bp, a_bp, recordedSignal);
-    
-    % SPL calc
-    rms_rec = rms(recordedSignal * calConfig.iFactor);
-    ispl = 20*log10(rms_rec / 2e-5);
+newPage(:,iLoudspeaker) = signal_run_ita_FILTER_LEVEL.time;
+%Play
+playrec('init', calConfig.iFs, calConfig.playDeviceID, calConfig.recDeviceID);
+page = playrec('playrec',newPage,1:calConfig.nLoudpeakers,length(newPage),calConfig.iChannel);
+while playrec('isFinished')~=1,pause(0.1);end
+recording = playrec('getRec',page);
+%         recordedSignal = recording;
+
+playrec('reset')
+recordedSignal = itaAudio(recording,calConfig.iFs,'time');
+recordedSignal = ita_time_window(recordedSignal,[0.05 0],'time','windowType', 'hann','symmetric','true');
+recordedSignal = ita_filter_bandpass(recordedSignal,'upper',calConfig.upperFreq,'lower',calConfig.lowerFreq);
+iSignalFilterLevel = ita_spk2level(recordedSignal*calConfig.iFactor,0,'added');
+ispl   = 20*log10(iSignalFilterLevel.freqData/2e-5);
+
 end
 

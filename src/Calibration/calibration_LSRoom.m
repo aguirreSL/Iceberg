@@ -1,18 +1,29 @@
 %% ADD Paths
 addpath(genpath(pwd))
+try
+    test = itaAudio;
+    clear test
+catch
+    disp('Indeed we need ITA-Toolbox. We shall install it, dear')
+cd ..
+if ispc
+run([pwd '\Toolboxes\ITA-Toolbox\ita_toolbox_setup.m'])
+else
+    !git clone https://git.rwth-aachen.de/ita/toolbox.git ../Toolboxes/ITA-Toolbox
+    run([pwd '/Toolboxes/ITA-Toolbox/ita_toolbox_setup.m'])
+end
 
-% ITA-Toolbox has been removed. Using native MATLAB functionalities.
-cd Calibration
+cd calibration
+end
+
 
 %% Create record session
 inputChannel    = 1;            %Set the channel that will receive the input 
 frequencyRange  = [20 24000];   %Set the frequency range
 samplingRate    = 48000;        %Set the sampling rate
-nBits           = 24;           %Assuming a standard 24-bit recording
-
-% Create a native audiorecorder object
-microphoneCalibratorRecording = audiorecorder(samplingRate, nBits, inputChannel);
-
+microphoneCalibratorRecording = itaMSRecord('freqRange', frequencyRange,...
+    'useMeasurementChain', false,'inputChannels', inputChannel,...
+    'averages', 10,'fftDegree',18,'samplingRate',samplingRate);
 %% Set the date
 theDay = (datetime('today','format','yyyy-MM-dd'));
 day = inputdlg({'day in format: dd-mm-yy:'},'Enter',[1 35],string(theDay));
@@ -22,28 +33,18 @@ calibrationMicrophone = inputdlg('type yes if you want to calibrate the micropho
 if strcmp(calibrationMicrophone,'yes')
     disp('Place the calibrator, verify power. Use +30 dB gain. Press any key')
     pause
-    % Run recording (Assume 5 seconds for calibration tone)
-    disp('Recording calibration signal for 5 seconds...');
-    recordblocking(microphoneCalibratorRecording, 5);
-    reference = getaudiodata(microphoneCalibratorRecording);
-    
+    % Run recording
+    reference = microphoneCalibratorRecording.run;
     % iFactor is used to correct the response obtained by the microphone to Pa,
     %  making possible to know the exact amount of pressure and correcting all
     %  spectrum based on that value (Indirect calibration). That calibration is
     %  possible due to microphones' flat response
     
-    % Calculate correction factor to 1 kHz natively
-    N = length(reference);
-    f = (0:N-1)*(samplingRate/N);
-    fft_ref = fft(reference) / N;
-    [~, idx1kHz] = min(abs(f - 1000));
-    valueAt1kHz = abs(fft_ref(idx1kHz)) * 2; % *2 for single-sided
-    
-    iFactor = 1 / valueAt1kHz;
-    
+    % Calculate correction factor to 1 kHz
+    iFactor = 1/abs(reference.freq2value(1000));
     % Verify
-    signal_calibrated = (reference / 2e-5) * iFactor;
-    soundPressureLevel_1kHz = 20*log10(valueAt1kHz * iFactor / 2e-5);
+    signal_calibrated = (reference/2e-5)*iFactor;
+    soundPressureLevel_1kHz = 20*log10(abs(signal_calibrated.freq2value(1000)));
     fprintf('Sound Pressure Level at 1000 Hz %.2f dB\n',soundPressureLevel_1kHz)
     disp('Press any key to continue')
     pause

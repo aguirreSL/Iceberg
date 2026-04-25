@@ -29,6 +29,7 @@ for nSignalsIndex = 1:signal.nChannels
     end
     current_signal.samplingRate = iFs;
     current_signal.nChannels = size(current_signal.time, 2);
+    current_signal.nSamples = size(current_signal.time, 1);
 
     if isempty(signal_vbap.time)
         signal_vbap = current_signal;
@@ -37,9 +38,12 @@ for nSignalsIndex = 1:signal.nChannels
     end
 end
 
-% Per-LS frequency filter + SPL alignment (skipped when calibration absent)
+% Per-LS frequency filter + SPL alignment (skipped when calibration absent).
+% Uses numel(...) > 0 instead of ~isempty(...) because the field can be an
+% itaResult array, whose isempty() returns a per-element logical vector and
+% breaks the && short-circuit.
 if isfield(configurationSetup, 'iLoudspeakerFreqFilter') && ...
-   ~isempty(configurationSetup.iLoudspeakerFreqFilter)
+   numel(configurationSetup.iLoudspeakerFreqFilter) > 0
     signal_vbap = calibrate_vbap(signal_vbap, level, sourceAngle, configurationSetup);
 end
 

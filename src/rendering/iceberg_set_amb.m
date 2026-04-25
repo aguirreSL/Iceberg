@@ -7,9 +7,10 @@ function signal_ambisonics = iceberg_set_amb(signal, LR, iAngle, level, configur
 signal_nor = native_normalize_dat(signal);
 
 % Per-LS frequency filter + SPL alignment on the dry signal (matches the
-% original ambisonics_set_level positioning: cal then convolve)
+% original ambisonics_set_level positioning: cal then convolve).
+% Uses numel(...) > 0 instead of ~isempty(...) — see iceberg_set_vbap.
 if isfield(configurationSetup, 'iLoudspeakerFreqFilter') && ...
-   ~isempty(configurationSetup.iLoudspeakerFreqFilter)
+   numel(configurationSetup.iLoudspeakerFreqFilter) > 0
     signal_nor = calibrate_ambisonics(signal_nor, level, iAngle, configurationSetup);
 end
 

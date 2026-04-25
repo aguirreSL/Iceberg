@@ -371,3 +371,79 @@ Both issues vanish with the file.
 [test_iceberg_integration.m:83](tests/test_iceberg_integration.m#L83) previously called `iceberg_merge(...)`. Replaced with a direct call to `iceberg(testCase.SignalObj, testCase.IrObj, iAngle, -40, testCase.ConfigSetup)` — testing the production code path instead of the deleted shadow.
 
 The test config gained `activeLSNumbers = [1, 7, 13, 19]` (positions of the cardinal-angle LS in the 24-channel `lsArray`), which `iceberg.m` requires for the active-channel mapping. The other rendering steps (standalone `iceberg_set_amb` and `iceberg_set_vbap` checks) are kept as unit-level sanity checks.
+
+---
+
+# Technical Update: Smoke Test Against Real Calibration (MATLAB R2026a)
+
+**Date:** 2026-04-25
+**Status:** ✅ `iceberg_example.m` end-to-end runs against the real `currentCalibration.mat`. Two latent bugs surfaced and were fixed.
+
+---
+
+## Summary
+
+A headless smoke test ([tests/run_iceberg_dry.m](tests/run_iceberg_dry.m)) was added to drive the full rendering pipeline against the actual ITA-format calibration shipped in [src/calibration/currentCalibration.mat](src/calibration/currentCalibration.mat). The first run revealed two real bugs that the integration test (with mock config or no calibration) had not caught.
+
+Final output (signal=white noise 3 s, IR=`rt_05`, source angle=45°, level=80 dB):
+
+```
+nChannels:    24
+nSamples:     160666
+samplingRate: 44100 Hz
+finite check: 1 (all finite)
+per-channel RMS (only non-zero shown):
+  ch  1 (angle=180°): RMS = 7.28e-03    ← Ambisonics late only
+  ch  7 (angle=270°): RMS = 6.86e-03    ← Ambisonics late only
+  ch 13 (angle=  0°): RMS = 1.11e-02    ← VBAP early + Ambisonics late
+  ch 19 (angle= 90°): RMS = 1.11e-02    ← VBAP early + Ambisonics late
+```
+
+The asymmetry between the front-right pair (0°/90°) and the back-left pair (180°/270°) is the expected Iceberg signature for a 45° source: the front-right pair receives both VBAP early and Ambisonics late energy; the back-left pair receives only the late spread.
+
+---
+
+## Bug #1: Guard short-circuit broke on `itaResult` arrays
+
+**Location:** [iceberg_set_vbap.m:43-44](src/rendering/iceberg_set_vbap.m#L43-L44) and [iceberg_set_amb.m:11-12](src/rendering/iceberg_set_amb.m#L11-L12)
+
+The guard was:
+```matlab
+if isfield(cfg, 'iLoudspeakerFreqFilter') && ~isempty(cfg.iLoudspeakerFreqFilter)
+```
+
+The real calibration `.mat` stores `iLoudspeakerFreqFilter` as `[1×24] itaResult` — an ITA-Toolbox class array, not a native struct array. `isempty()` on an `itaResult` array returns a per-element logical vector `[0 0 0 ... 0]`, not a scalar — the `&&` short-circuit operator requires scalar logical operands, so MATLAB throws:
+
+```
+Operands to the short-circuit AND (&&) and OR (||) operators must be
+convertible to logical scalars.
+```
+
+**Fix:** replaced `~isempty(...)` with `numel(...) > 0`, which is always scalar regardless of input type:
+
+```matlab
+if isfield(cfg, 'iLoudspeakerFreqFilter') && numel(cfg.iLoudspeakerFreqFilter) > 0
+```
+
+This works for native struct arrays (the mock case) and for `itaResult` arrays (the real calibration case) without runtime checks.
+
+---
+
+## Bug #2: `signal_vbap.nSamples` missing after the DSER-mono restoration
+
+**Location:** [iceberg_set_vbap.m:32](src/rendering/iceberg_set_vbap.m#L32)
+
+When DSER was multichannel (the regression from a prior session), the per-channel loop in `iceberg_set_vbap` ran multiple times and assembled `signal_vbap` via `native_add`, which sets `nSamples`. After the DSER-mono restoration, the loop runs **exactly once**: the `signal_vbap = current_signal` first-iteration branch is taken, and `current_signal` was not setting `nSamples` — leaving the field absent.
+
+`calibrate_vbap` reads `signal_to_play.nSamples` on its first line, so the absent field surfaced as `Unrecognized field name "nSamples"` only once calibration was actually invoked (i.e., not visible to the integration test, which has no calibration data).
+
+**Fix:** added `current_signal.nSamples = size(current_signal.time, 1);` next to the existing `nChannels` assignment.
+
+---
+
+## Why the Integration Test Did Not Catch These
+
+- Bug #1 only triggers on `itaResult` (or any non-scalar-isempty type). The mock calibration in `testIcebergCoreEndToEndWithMockCalibration` uses a native struct array, where `~isempty(...)` returns a scalar — so the guard worked.
+- Bug #2 only triggers when calibration runs. The non-calibrated test path skips the `calibrate_*` call, so the missing `nSamples` was never read.
+
+Both could have been caught by a third test variant: mock calibration **as an itaResult-shaped object**. Adding that as a unit-level fixture would harden the suite further; for now the [run_iceberg_dry.m](tests/run_iceberg_dry.m) smoke test (which loads the real `.mat`) covers both.

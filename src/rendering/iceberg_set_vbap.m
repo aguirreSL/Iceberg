@@ -1,44 +1,46 @@
-function [signal_vbap] = iceberg_set_vbap(signal, DSER, iAngle, configurationSetup)
-%% Define VBAP signal to the specific array using the most recent calibration
+function [signal_vbap] = iceberg_set_vbap(signal, DSER, iAngle, level, configurationSetup)
+%% Render signal with VBAP and (optionally) apply per-LS calibration
 %
-% [signalcalibrated] = iceberg_set_vbap(signalStruct,iAngle,configurationSetup)
-% signalStruct each channel will be played at defined level and angle
-% iAngle: Should be a vector as the same number of signal channels
-% Author: Sergio
+%   signal_vbap = iceberg_set_vbap(signal, DSER, iAngle, level, configurationSetup)
+%
+%   Convolves signal with DSER, pans the result with VBAP at iAngle, and
+%   applies per-LS frequency filter + SPL alignment when calibration data
+%   is present in configurationSetup.
 
-%% Load values from the most recent calibration
-iFs = signal.samplingRate;                          %Sample Frequency
+iFs = signal.samplingRate;
+sourceAngle = iAngle(1);                  % preserve the scalar source angle for calibration
 signal = native_convolve(signal, DSER);
 
-% If a single angle is provided for a multi-channel signal, replicate it
-% to all channels (same presentation angle for every channel)
 if isscalar(iAngle)
     iAngle = repmat(iAngle, 1, signal.nChannels);
 end
 
-%% Prepare Signal
-signal_vbap.samplingRate = iFs;  
-% native implementation of an empty cumulative signal
+signal_vbap.samplingRate = iFs;
 signal_vbap.time = [];
 signal_vbap.nChannels = 0;
 
 for nSignalsIndex = 1:signal.nChannels
     signal_vector(nSignalsIndex,:,:) = ring_VBAP(...
         iFs,signal.time(:,nSignalsIndex), iAngle(nSignalsIndex), configurationSetup);
-    
-    % Prepare individual squeezed native structure
+
     current_signal.time = squeeze(signal_vector(nSignalsIndex,:,:));
     if isrow(current_signal.time)
         current_signal.time = current_signal.time';
     end
     current_signal.samplingRate = iFs;
     current_signal.nChannels = size(current_signal.time, 2);
-    
+
     if isempty(signal_vbap.time)
         signal_vbap = current_signal;
     else
         signal_vbap = native_add(signal_vbap, current_signal);
     end
+end
+
+% Per-LS frequency filter + SPL alignment (skipped when calibration absent)
+if isfield(configurationSetup, 'iLoudspeakerFreqFilter') && ...
+   ~isempty(configurationSetup.iLoudspeakerFreqFilter)
+    signal_vbap = calibrate_vbap(signal_vbap, level, sourceAngle, configurationSetup);
 end
 
 end

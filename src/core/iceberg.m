@@ -1,4 +1,4 @@
-function iceberg_signal = iceberg(signal, IR, Selected_Angle, configSetup)
+function iceberg_signal = iceberg(signal, IR, Selected_Angle, level, configSetup)
 % ICEBERG Auralization Method (VBAP + Ambisonics)
 % Native Implementation
 % Combines VBAP for direct sound and early reflections with Ambisonics for
@@ -7,7 +7,8 @@ function iceberg_signal = iceberg(signal, IR, Selected_Angle, configSetup)
 % Inputs:
 %   signal          - Input audio Struct (with .time, .samplingRate)
 %   IR              - Impulse responses Struct
-%   selectedAngle   - Selected source angle
+%   Selected_Angle  - Source presentation angle (degrees)
+%   level           - Target SPL in dB (or 'n' to bypass level scaling)
 %   configSetup     - Configuration setup structure
 %
 % Output:
@@ -15,9 +16,9 @@ function iceberg_signal = iceberg(signal, IR, Selected_Angle, configSetup)
 
 [dser, lr] = iceberg_core(IR);
 
-vbapDser = iceberg_set_vbap(signal, dser, Selected_Angle, configSetup);
+vbapDser = iceberg_set_vbap(signal, dser, Selected_Angle, level, configSetup);
 
-ambisonicsLr = iceberg_set_amb(signal, lr, configSetup);
+ambisonicsLr = iceberg_set_amb(signal, lr, Selected_Angle, level, configSetup);
 
 % Pre-populate empty audio structs for the active channels
 vbapAudio.time = zeros(size(vbapDser.time, 1), max(configSetup.activeLSNumbers));

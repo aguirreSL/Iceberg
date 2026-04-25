@@ -64,7 +64,7 @@ iceberglAngles           = [180, 270, 0, 90]; % [Back, Left, Front, Right]
 configSetup.ls_dir       = [iceberglAngles; zeros(1,4)]';
 
 %% PROCESS SIGNAL
-iceberg_signal = iceberg(signal, IR, selectedAngle, configSetup);
+iceberg_signal = iceberg(signal, IR, selectedAngle, selectedLevel, configSetup);
 
 %% PLAYBACK
 playPlain(iceberg_signal,numberOfSpeakers)% Output to configured sound card

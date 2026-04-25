@@ -56,8 +56,14 @@ classdef test_iceberg_integration < matlab.unittest.TestCase
     
     methods(Test)
         function testIcebergCoreEndToEnd(testCase)
-            % This simulates replacing `iceberg.m` with the native logic
-            
+            % Exercises the rendering pipeline WITHOUT calibration.
+            % The config has no iLoudspeakerFreqFilter, so the calibration guard
+            % in iceberg_set_vbap/iceberg_set_amb skips calibrate_vbap and
+            % calibrate_ambisonics. Calibration coverage lives in the next test.
+            warning('Iceberg:test', ...
+                ['Calibration path NOT exercised — config has no iLoudspeakerFreqFilter. ' ...
+                 'See testIcebergCoreEndToEndWithMockCalibration for that coverage.']);
+
             % 1. Core Partioning
             [DSER, IR_Late] = iceberg_core(testCase.IrObj);
             testCase.verifyEqual(DSER.nChannels, 1, 'DSER must be mono (W-only envelope into VBAP).');
@@ -85,6 +91,49 @@ classdef test_iceberg_integration < matlab.unittest.TestCase
             testCase.verifyEqual(signal_final.nChannels, 24, 'Final output must match full array configuration.');
             testCase.verifyEqual(length(signal_final.time), length(signal_amb.time), 'Final stream duration should match long Amb array.');
         end
-        
+
+        function testIcebergCoreEndToEndWithMockCalibration(testCase)
+            % Exercises the calibration path end-to-end with a neutral
+            % (identity) mock — flat freq response, level factor 1.
+            % Validates that calibrate_vbap/calibrate_ambisonics are wired in
+            % and produce finite, non-zero output on the active LS channels.
+
+            cfg = testCase.addNeutralCalibration(testCase.ConfigSetup);
+            iAngle = 45;
+            level  = -40;
+
+            signal_final = iceberg(testCase.SignalObj, testCase.IrObj, iAngle, level, cfg);
+
+            testCase.verifyEqual(signal_final.nChannels, 24, ...
+                'Final output must match full array configuration with calibration enabled.');
+            testCase.verifyNotEmpty(signal_final.time);
+            testCase.verifyTrue(all(isfinite(signal_final.time(:))), ...
+                'Calibrated output must be free of NaN/Inf.');
+
+            activeRms = sqrt(mean(signal_final.time(:, cfg.activeLSNumbers).^2));
+            testCase.verifyGreaterThan(activeRms, 0, ...
+                'Active LS channels should have non-zero RMS after calibration.');
+        end
+    end
+
+    methods   % helpers
+        function cfg = addNeutralCalibration(testCase, cfg)
+            % Build an identity calibration: flat 1.0 magnitude per LS, level
+            % factor 1, iFactor 1. Trips the guard in iceberg_set_vbap/_amb so
+            % calibrate_* runs but with a mathematical no-op response.
+            nLS = length(cfg.lsArray);
+
+            cfg.iFactor = 1;
+            cfg.newLevelFactor = ones(1, nLS);
+
+            nBins = 1024;
+            freqVec  = linspace(0, testCase.SampleRate/2, nBins)';
+            flatResp = ones(nBins, 1);
+
+            for i = 1:nLS
+                cfg.iLoudspeakerFreqFilter(i).freqVector = freqVec;
+                cfg.iLoudspeakerFreqFilter(i).freq       = flatResp;
+            end
+        end
     end
 end

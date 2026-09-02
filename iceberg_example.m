@@ -62,6 +62,8 @@ configSetup.lsArray = [180,195,210,225,240,255,270,285,300,315,330,345,...
 configSetup.activeLSNumbers = [1, 7, 13, 19];% 4 LS to be used by Iceberg
 iceberglAngles           = [180, 270, 0, 90]; % [Back, Left, Front, Right]
 configSetup.ls_dir       = [iceberglAngles; zeros(1,4)]';
+% Thesis-era rt00 special case (10 ms rectwin DSER window, no centre time)
+configSetup.anechoicSpecialCase = strcmp(selectedRT, 'rt_00');
 
 %% PROCESS SIGNAL
 iceberg_signal = iceberg(signal, IR, selectedAngle, selectedLevel, configSetup);

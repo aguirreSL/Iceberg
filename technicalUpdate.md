@@ -447,3 +447,62 @@ When DSER was multichannel (the regression from a prior session), the per-channe
 - Bug #2 only triggers when calibration runs. The non-calibrated test path skips the `calibrate_*` call, so the missing `nSamples` was never read.
 
 Both could have been caught by a third test variant: mock calibration **as an itaResult-shaped object**. Adding that as a unit-level fixture would harden the suite further; for now the [run_iceberg_dry.m](tests/run_iceberg_dry.m) smoke test (which loads the real `.mat`) covers both.
+
+---
+
+## 2026-09-02: Thesis-parity restoration (centre time, EQ mirroring, onset shift, max(DSER), anechoic case)
+
+Found by a second review that compared the native
+chain end to end against the thesis-era ITA chain recovered from commit
+`6252863`. Under identical input, IR and 2022 calibration the two chains
+rendered different scenes: -4.0 to -6.6 dB per channel. Root causes fixed here:
+
+1. **Centre time was absolute, ITA's is onset-referenced.**
+   `ita_roomacoustics` shifts the IR to its ISO 3382 onset
+   (`ita_time_shift(ir,'20dB')` -> `ita_start_IR`) before the EDC analysis, so
+   its Ts is measured from the onset. The native replica integrated in absolute
+   time, adding the IR's 33.4 ms propagation delay to every split point. The
+   late branch lost 4.98 dB of energy versus the thesis chain. **Fix:** new
+   `native_start_IR` (exact replica of `ita_start_IR`, ISO 3382 path);
+   `native_center_time` now circshifts to the onset first, like ITA. Native Ts
+   now equals ITA Ts to 4 decimals on all committed IRs, and late-branch energy
+   matches at +0.00 dB.
+
+2. **EQ half-spectrum was stretched over the full FFT instead of mirrored.**
+   Effective filter was 0.5*(H(f/2)+H(fs/2-f/2)): up to 4.7 dB band error with
+   the shipped calibration (worst at 50-125 Hz), confirmed against
+   `ita_multiply_spk`, which applies the curve correctly. **Fix:** Hermitian
+   mirror `[H; conj(flipud(H(2:end-1)))]` in both `calibrate_*`; sample-level
+   equality with `ita_multiply_spk` is pinned by
+   `test_thesis_parity/testEQMatchesItaMultiplySpk`.
+
+3. **`native_time_shift` 'auto' used the absolute peak; ITA uses the ISO 3382
+   onset.** Also, its numeric mode heuristic treated shifts <= 100 as seconds,
+   corrupting small sample shifts (the integration-test IR sat exactly on the
+   cliff). **Fix:** 'auto' uses `native_start_IR` (min across channels, like
+   ITA); numeric shifts now require an explicit `'samples'`/`'time'` mode;
+   `iceberg_core` passes `'samples'` for all re-shifts.
+
+4. **Thesis-chain behaviours dropped by the port, restored:**
+   `VBAP_DS * max(DSER)` (~-3 dB FuMa factor, after calibration), dry-signal
+   peak normalisation in the VBAP branch, and the rt00 anechoic special case
+   (10 ms rectwin, no centre time) as `configSetup.anechoicSpecialCase`
+   (mirrors the thesis `iIR == 3` switch; `iceberg_example` sets it for
+   rt_00).
+
+5. **`calibrate_ambisonics` guard crashed on `level = 'n'`** (`'n' > 95`);
+   now `isnumeric(level) && level > 95`.
+
+**Deliberate, documented deviation kept:** the 2022 hardcoded pair cascade was
+inverted in 3 of 8 octants; the native nearest-two-loudspeaker selection stays
+(the 25 Apr 2026 fix). At 100 degrees this is the only remaining difference
+between the chains: every other channel matches the thesis render exactly.
+
+**Result (same input, rt05 at 45 deg, 2022 calibration):** per-channel deltas
+thesis->native went from [-3.97 -6.64 -4.33 -4.73] dB to
+[-6.1e-5 +6.4e-4 +2.6e-3 +1.0e-3] dB. Suite: 23/23 green, including new
+parity tests (`tests/test_thesis_parity.m`).
+
+**Known consequence:** audio output changed -> the `iceberg-cpp-fixtures`
+references are stale and must be regenerated from this repo (house rule), and
+the C++ parity number re-measured, before they mean anything.

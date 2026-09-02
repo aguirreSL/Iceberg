@@ -74,10 +74,18 @@ for idx = 1:length(activeLSNumbers)
 
     chFFT = fft(ch);
     filterResp = Interpolation(:, activeLSNumbers(idx));
-    if length(filterResp) ~= length(chFFT)
-        filterResp = interp1( ...
-            linspace(0, 1, length(filterResp)), filterResp, ...
-            linspace(0, 1, length(chFFT))).';
+    % Mirror the half-spectrum onto the full FFT grid (Hermitian symmetry),
+    % as ita_multiply_spk does. The previous code stretched the nBins filter
+    % over the nFFT bins, replacing H(f) with 0.5*(H(f/2)+H(fs/2-f/2)) and
+    % smearing steep curve sections by up to ~4.7 dB per band.
+    nFFTlen = numel(chFFT);
+    nBinsLen = numel(filterResp);
+    if nBinsLen ~= nFFTlen
+        if mod(nFFTlen, 2) == 0
+            filterResp = [filterResp; conj(flipud(filterResp(2:end-1)))];
+        else
+            filterResp = [filterResp; conj(flipud(filterResp(2:end)))];
+        end
     end
     out(:, idx) = real(ifft(chFFT .* filterResp)) * Level_Factor(activeLSNumbers(idx));
 end

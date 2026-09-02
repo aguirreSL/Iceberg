@@ -8,13 +8,16 @@ function iceberg_signal = iceberg(signal, IR, Selected_Angle, level, configSetup
 %   signal          - Input audio Struct (with .time, .samplingRate)
 %   IR              - Impulse responses Struct
 %   Selected_Angle  - Source presentation angle (degrees)
-%   level           - Target SPL in dB (or 'n' to bypass level scaling)
+%   level           - Target SPL in dB, or 'n' (thesis-inherited semantics:
+%                     the Ambisonics branch skips level scaling; the VBAP
+%                     branch scales to -lsdBperVolt. Not a true bypass.)
 %   configSetup     - Configuration setup structure
 %
 % Output:
 %   iceberg_signal  - Processed spatial audio Struct
 
-[dser, lr] = iceberg_core(IR);
+anechoic = isfield(configSetup, 'anechoicSpecialCase') && configSetup.anechoicSpecialCase;
+[dser, lr] = iceberg_core(IR, anechoic);
 
 vbapDser = iceberg_set_vbap(signal, dser, Selected_Angle, level, configSetup);
 

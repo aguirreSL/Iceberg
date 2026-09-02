@@ -9,6 +9,7 @@ function [signal_vbap] = iceberg_set_vbap(signal, DSER, iAngle, level, configura
 
 iFs = signal.samplingRate;
 sourceAngle = iAngle(1);                  % preserve the scalar source angle for calibration
+signal = native_normalize_dat(signal);    % thesis chain normalised the dry signal in both branches
 signal = native_convolve(signal, DSER);
 
 if isscalar(iAngle)
@@ -46,6 +47,11 @@ if isfield(configurationSetup, 'iLoudspeakerFreqFilter') && ...
    numel(configurationSetup.iLoudspeakerFreqFilter) > 0
     signal_vbap = calibrate_vbap(signal_vbap, level, sourceAngle, configurationSetup);
 end
+
+% Thesis-chain factor: setAuralizationHybrid_4LS_2021 scaled the calibrated
+% VBAP output by max(DSER) (~0.707 = -3 dB for FuMa-normalised W). Dropped
+% during the 2026 port; restored for parity with the measured chain.
+signal_vbap.time = signal_vbap.time * max(DSER.time(:));
 
 end
 

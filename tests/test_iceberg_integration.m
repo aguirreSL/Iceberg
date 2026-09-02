@@ -33,9 +33,16 @@ classdef test_iceberg_integration < matlab.unittest.TestCase
             testCase.SignalObj.nChannels = 1;
             testCase.SignalObj.trackLength = testCase.SignalObj.nSamples / testCase.SampleRate;
             
-            % Mock a simple impulse
+            % Mock a simple IR: direct impulse plus a weak late tail so that
+            % BOTH branches receive energy. A bare impulse has Ts == its own
+            % onset, which makes iceberg_core crop the late branch empty and
+            % the Ambisonics path silent (that silently zeroed 2 of the 4
+            % active channels before).
             testCase.IrData = zeros(testCase.SampleRate, 4); % 4 channel B-Format mock
             testCase.IrData(100, :) = 1; % Ideal impulse delayed by a fraction
+            nTail = (0:testCase.SampleRate-5001)';
+            tail = 0.001 * exp(-nTail / (0.05*testCase.SampleRate));
+            testCase.IrData(5001:end, :) = testCase.IrData(5001:end, :) + tail;
             
             testCase.IrObj = struct();
             testCase.IrObj.time = testCase.IrData;
@@ -71,15 +78,11 @@ classdef test_iceberg_integration < matlab.unittest.TestCase
             testCase.verifyNotEmpty(DSER.time);
             testCase.verifyNotEmpty(IR_Late.time);
 
-            % 2. Late rendering Ambisonics
+            % 2. Late rendering Ambisonics (production config: 4-LS decode)
             iAngle = 45; % target azimuthal panning target
-
-            % Convert configurations dynamically as done inside `iceberg.m`
-            [C,ia,ic] = unique(testCase.ConfigSetup.lsArray);
-            ambSetup.ls_dir = [(C(1:end))', zeros(length(C),1)];
-
-            signal_amb = iceberg_set_amb(testCase.SignalObj, IR_Late, iAngle, -40, ambSetup);
-            testCase.verifyEqual(signal_amb.nChannels, 24, 'Output from ambisonics should match array size.');
+            signal_amb = iceberg_set_amb(testCase.SignalObj, IR_Late, iAngle, -40, testCase.ConfigSetup);
+            testCase.verifyEqual(signal_amb.nChannels, 4, ...
+                'Production decode uses the 4 active LS (iceberg.m maps them into the 24-ch master array).');
             testCase.verifyNotEmpty(signal_amb.time);
 
             % 3. Early Rendering VBAP (single angle — DSER is mono)

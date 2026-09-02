@@ -1,20 +1,34 @@
 function cTime = native_center_time(IR)
 % NATIVE_CENTER_TIME Calculates the center time (Ts) of an impulse response
-% mirroring the exact analytical structure of ita_roomacoustics_EDC.m.
+% mirroring the analytical structure of ita_roomacoustics_EDC.m.
+%
+% Like ita_roomacoustics (which shifts the IR to its ISO 3382 onset before
+% the EDC analysis), the centroid is referenced to the onset, NOT to sample 1.
+% This reproduces the thesis-era split point: on the committed ODEON IRs the
+% onset sits ~33.4 ms after sample 1, and the previous absolute-time version
+% moved the DSER/late split by exactly that delay (-5 dB in the late branch).
 %
 % IR: audioStruct with .time and .samplingRate (must be single channel)
 
     fs = IR.samplingRate;
     p = IR.time;
-    
+
     if size(p, 2) > 1
         p = p(:, 1); % force single channel for computation
     end
-    
+
     if isrow(p)
         p = p';
     end
-    
+
+    % Onset reference: ita_roomacoustics preprocessing shifts the IR to its
+    % ISO 3382 onset (ita_time_shift '20dB' = circshift) before the EDC
+    % analysis. Replicate that here so the centroid and the internal EDC
+    % times share the same (onset-referenced) clock as ITA.
+    onsetIdx = native_start_IR(IR, 20);
+    onsetIdx = onsetIdx(1);
+    p = circshift(p, [-(onsetIdx - 1), 0]);
+
     nSamples = length(p);
     energyData = p.^2;
     timeVector = (0:nSamples-1)' / fs;

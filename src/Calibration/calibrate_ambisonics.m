@@ -3,7 +3,7 @@ function signalcalibrated = calibrate_ambisonics(signal, level, iAngles, configu
 % Ambisonics signal using the nearest physical LS as virtual reference.
 % Native struct version.
 
-if level > 95
+if isnumeric(level) && level > 95
     error('Level max is 95 dB');
 end
 
@@ -53,10 +53,16 @@ end
 
 chFFT = fft(ch);
 filterResp = Interpolation(:, iChannel);
-if length(filterResp) ~= length(chFFT)
-    filterResp = interp1( ...
-        linspace(0, 1, length(filterResp)), filterResp, ...
-        linspace(0, 1, length(chFFT))).';
+% Mirror the half-spectrum onto the full FFT grid (Hermitian symmetry),
+% as ita_multiply_spk does. See calibrate_vbap for the regression note.
+nFFTlen = numel(chFFT);
+nBinsLen = numel(filterResp);
+if nBinsLen ~= nFFTlen
+    if mod(nFFTlen, 2) == 0
+        filterResp = [filterResp; conj(flipud(filterResp(2:end-1)))];
+    else
+        filterResp = [filterResp; conj(flipud(filterResp(2:end)))];
+    end
 end
 filtered = real(ifft(chFFT .* filterResp)) * configurationSetup.newLevelFactor(iChannel);
 

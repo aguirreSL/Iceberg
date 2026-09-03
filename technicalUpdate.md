@@ -624,3 +624,20 @@ Full-round validation (72 x 5 deg): every angle, every active channel now
 agrees with the thesis ITA chain within machine epsilon; no divergent angle
 remains (previously 26). Suite 34/34 with testPairSelectionModes pinning
 both modes at 100 deg.
+
+---
+
+## 2026-09-02 (round 6): all thesis IR sets validated, full circles
+
+The full-round sweep was extended to the remaining two IR families of the
+thesis (72 positions each, same 2022 calibration, level 80):
+
+- rt_11 (iIR=2): 72/72 angles, worst active-channel rel 5.94e-11
+  (accumulated FFT rounding, same level as rt_05).
+- rt_00 (iIR=3, anechoic special case vs configSetup.anechoicSpecialCase):
+  72/72 angles, worst rel 9.29e-16 - machine epsilon (the anechoic path
+  bypasses the centre-time/Lundeby machinery almost entirely).
+- rt_05: 72/72 at machine epsilon (rounds 4-5).
+
+Combined: 216 renders across every IR position used by the thesis chain,
+no failed reference render, no angle above 1e-6, worst case 5.9e-11.

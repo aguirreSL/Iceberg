@@ -49,10 +49,14 @@ end
 
 if level ~= 'n'
     ch = ch * 10^((level - lsdBperVolt) / 20);
+    ch = double(ch);
+    % itaAudio casts time data to double before its fft; see calibrate_vbap
 end
 
 chFFT = fft(ch);
-filterResp = Interpolation(:, iChannel);
+filterResp = double(Interpolation(:, iChannel));
+% Cast to double before the multiply, as itaAudio does when constructed
+% from (possibly single-precision) freq data; see calibrate_vbap.
 % Mirror the half-spectrum onto the full FFT grid (Hermitian symmetry),
 % as ita_multiply_spk does. See calibrate_vbap for the regression note.
 nFFTlen = numel(chFFT);

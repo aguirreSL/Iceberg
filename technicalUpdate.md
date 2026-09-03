@@ -506,3 +506,73 @@ parity tests (`tests/test_thesis_parity.m`).
 **Known consequence:** audio output changed -> the `iceberg-cpp-fixtures`
 references are stale and must be regenerated from this repo (house rule), and
 the C++ parity number re-measured, before they mean anything.
+
+---
+
+## 2026-09-02 (round 2): bit-level parity with the ITA chain
+
+After the semantic restoration above, the residual end-to-end difference was
+traced to three util-level divergences. All fixed by replicating the ITA
+algorithms exactly:
+
+1. **`native_convolve` now replicates `ita_convolve`:** fftDegree difference
+   < 2 -> `fftfilt` (overlap-add, as ITA); otherwise linear convolution by
+   spectral multiplication. Output length is ITA's even-forced
+   `2*ceil((n1+n2-1)/2)` (the old `conv()`-based version returned n1+n2
+   rows). Sample agreement with `ita_convolve`: ~4e-15.
+2. **`native_time_crop` now replicates `ita_time_crop`:** interval
+   `round(t*fs)+1`, odd crop lengths forced even, and the inverted-range
+   semantics (`[t 0]` keeps `[.., t1+1..end]`, one sample later than a naive
+   crop). The old version's off-by-one shifted the whole late branch by one
+   sample (3% max sample error).
+3. **`native_center_time` now replicates the full ITA default path:**
+   `ita_roomacoustics` preprocessing (onset shift, wrapped-tail zeroing,
+   trailing-zero truncation with the <5-samples guard), the broadband
+   **Lundeby** estimation (`ita_roomacoustics_reverberation_time_lundeby`,
+   30 ms windows, iterative noise/decay/crossing, including its internal
+   re-shift), and the EDC `cutWithCorrection` centre-time formula. Ts is now
+   **bit-identical** to `ita_roomacoustics` on all reverberant IRs
+   (17 significant digits). On rt_00 it errors exactly like ITA (Lundeby on
+   a truncated bare impulse), which is why the anechoic special case exists.
+
+**Measured result:** DSER and IR_Late are bit-identical to the ITA chain
+(max |diff| = 0, both branches). End-to-end 24-channel render versus the
+recovered 2022 thesis chain (same input, IR, 2022 calibration): per-channel
+deltas [-3.5e-7 .. -5.5e-7] dB; sample-level max |diff| 3.2e-8 (2.9e-7
+relative, ~-131 dB), the residue living in itaAudio object internals
+(fftDegree grids of the 2022 set_level construction).
+
+**New permanent test:** `test_thesis_parity/testEndToEndChainMatchesITA`
+reconstructs the thesis chain inline from ITA primitives (shipped
+calibration, committed rt_05) and pins iceberg() to it at < 1e-6 relative
+per channel. Suite: 32/32. Remaining known deviation: pair selection at
+non-coincident angles (documented, deliberate). The iceberg-cpp fixtures
+remain stale until regenerated.
+
+---
+
+## 2026-09-02 (round 3): the last residue was single precision, not grids
+
+Question raised: why do convolution and the EQ multiply differ from ITA at
+all - why not replicate the fractional fftDegree? Measured answers:
+
+- itaAudio preserves fractional fftDegree; its freqVector for even nSamples
+  is bit-equal (1 ULP) to the native grid. Grids were never the issue.
+- native_convolve vs ita_convolve: 5.55e-16 (1 ULP). Not the issue.
+- The 2.9e-7 end-to-end residue lived in the calibration stage: the
+  calibration .mat stores iFactor and the EQ curves as **single** precision
+  (new_Level_Factor and freqVector are double). In the 2022 chain the
+  single-tainted level gain made the stimulus single, but itaAudio casts
+  time data to double at construction, so ITA's fft/multiply ran in double
+  with single-rounded values. The native code multiplied a double FFT by a
+  single filter and FFT'd a single stimulus, collapsing the whole spectral
+  path to single (eps 1.2e-7).
+- Fix: cast the level-scaled stimulus and the interpolated filter to double
+  before the FFT/multiply in both calibrate_* (2 lines each), replicating
+  itaAudio's casts. Stage-level: 6.2e-16. End-to-end vs the 2022 thesis
+  artifacts: max 4.1e-11 abs / 3.8e-10 rel (~-184 dB), per-channel RMS
+  deltas <= 4.4e-11 dB. Suite 32/32.
+
+The remaining 3.8e-10 is accumulated FFT rounding across different code
+paths; bit-exactness beyond this would require executing ITA's own class
+code, which a native port cannot do by definition.

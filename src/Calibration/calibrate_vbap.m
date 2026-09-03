@@ -71,9 +71,17 @@ for idx = 1:length(activeLSNumbers)
     end
 
     ch = ch * 10^((levels(activeLSNumbers(idx)) - lsdBperVolt) / 20);
+    ch = double(ch);
+    % lsdBperVolt is single when iFactor is (the .mat stores it so), which
+    % makes the scaled stimulus single. itaAudio casts time data to double
+    % before its fft; replicate that so the FFT runs in double, as in ITA.
 
     chFFT = fft(ch);
-    filterResp = Interpolation(:, activeLSNumbers(idx));
+    filterResp = double(Interpolation(:, activeLSNumbers(idx)));
+    % Cast to double before the multiply, as itaAudio does when constructed
+    % from (possibly single-precision) freq data: the calibration .mat
+    % stores the EQ curves as single, and multiplying a double FFT by a
+    % single filter collapses the whole product to single precision.
     % Mirror the half-spectrum onto the full FFT grid (Hermitian symmetry),
     % as ita_multiply_spk does. The previous code stretched the nBins filter
     % over the nFFT bins, replacing H(f) with 0.5*(H(f/2)+H(fs/2-f/2)) and

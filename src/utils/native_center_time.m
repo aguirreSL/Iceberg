@@ -1,96 +1,192 @@
 function cTime = native_center_time(IR)
-% NATIVE_CENTER_TIME Calculates the center time (Ts) of an impulse response
-% mirroring the analytical structure of ita_roomacoustics_EDC.m.
+% NATIVE_CENTER_TIME Centre time (Ts) of an impulse response, replicating the
+% ITA-Toolbox default path bit for bit:
+%   ita_roomacoustics preprocessing (ita_time_shift '20dB', wrapped-tail
+%   zeroing, trailing-zero truncation), then the broadband Lundeby
+%   estimation (ita_roomacoustics_reverberation_time_lundeby with 30 ms
+%   windows), then the EDC centre-time formula of ita_roomacoustics_EDC with
+%   method 'cutWithCorrection' (default).
 %
-% Like ita_roomacoustics (which shifts the IR to its ISO 3382 onset before
-% the EDC analysis), the centroid is referenced to the onset, NOT to sample 1.
-% This reproduces the thesis-era split point: on the committed ODEON IRs the
-% onset sits ~33.4 ms after sample 1, and the previous absolute-time version
-% moved the DSER/late split by exactly that delay (-5 dB in the late branch).
+% On Lundeby failure (NaN, as in ITA) the function falls back to the full
+% uncut centroid, mirroring the thesis-era isnan(cTime) retry with
+% 'edcMethod','noCut' (normalisation is irrelevant: the centroid is
+% scale-invariant).
 %
 % IR: audioStruct with .time and .samplingRate (must be single channel)
 
     fs = IR.samplingRate;
     p = IR.time;
-
     if size(p, 2) > 1
-        p = p(:, 1); % force single channel for computation
+        p = p(:, 1);
     end
-
     if isrow(p)
         p = p';
     end
+    nSamples = numel(p);
 
-    % Onset reference: ita_roomacoustics preprocessing shifts the IR to its
-    % ISO 3382 onset (ita_time_shift '20dB' = circshift) before the EDC
-    % analysis. Replicate that here so the centroid and the internal EDC
-    % times share the same (onset-referenced) clock as ITA.
-    onsetIdx = native_start_IR(IR, 20);
-    onsetIdx = onsetIdx(1);
-    p = circshift(p, [-(onsetIdx - 1), 0]);
+    %% ---- ita_roomacoustics preprocessing ----
+    % onset shift (ita_time_shift '20dB')
+    shiftSamples = -(native_start_IR(IR, 20)) + 1;      % ITA: -start + 1
+    p = circshift(p, [double(shiftSamples), 0]);
 
-    nSamples = length(p);
+    % nInputSamples: original onset position in the shifted frame, even-forced
+    nInputSamples = nSamples + shiftSamples + rem(shiftSamples, 2);
+
+    % zero the wrapped-around tail, then walk back over trailing zeros
+    tmpData = p;
+    tmpData(nInputSamples:end) = 0;
+    if nInputSamples > 1
+        startValue = nInputSamples;
+        while tmpData(nInputSamples - 1) == 0
+            nInputSamples = nInputSamples - 1;
+            if nInputSamples == 1
+                error('native_center_time: channel is empty');
+            end
+        end
+        if nInputSamples < 5
+            nInputSamples = startValue;   % ITA: cancel cutting if < 5 samples left
+        end
+    end
+    p = tmpData(1:nInputSamples);
+    nSamples = numel(p);
+
+    %% ---- broadband Lundeby (verbatim structure) ----
+    [revT, noiseEst, intersectionTime] = native_lundeby_broadband(p, fs);
+
+    %% ---- ita_roomacoustics_EDC 'cutWithCorrection' + calcCenterTime ----
     energyData = p.^2;
     timeVector = (0:nSamples-1)' / fs;
-    
-    % Smooth data for intersection finding (ITA uses 75ms blocks)
-    smoothBlockLength = 0.075;
-    nSamplesPerBlock = round(smoothBlockLength * fs);
-    numBlocks = floor(nSamples / nSamplesPerBlock);
-    
-    if numBlocks < 2
-        % Fallback for extremely short IR
-        cTime = sum(energyData .* timeVector) / (sum(energyData) + eps);
+
+    if isnan(revT) || isnan(intersectionTime)
+        % Lundeby failed; ITA returns NaN, the thesis chain retried with
+        % 'edcMethod','noCut' = full uncut centroid (C = 0, t1IdxRaw = end).
+        cTime = sum(energyData .* timeVector) / sum(energyData);
         return;
     end
-    
-    energyTrunc = energyData(1:numBlocks*nSamplesPerBlock);
-    timeWinData = sum(reshape(energyTrunc, nSamplesPerBlock, numBlocks), 1)' / nSamplesPerBlock;
-    timeVecWin  = (0.5 + (0:numBlocks-1))' * nSamplesPerBlock / fs;
-    
-    % Estimate noise from the last 10%
-    noise_idx = max(1, floor(0.9 * numBlocks));
-    pSquareAtIntersection = mean(timeWinData(noise_idx:end));
-    
-    % Find intersection t1 idx
-    t1idx = find(timeWinData > pSquareAtIntersection * 2, 1, 'last');
-    if isempty(t1idx)
-        t1idx = numBlocks;
+
+    t1 = intersectionTime;
+    [~, t1IdxRaw] = min(abs(timeVector - t1));
+
+    pSquareAtIntersection = noiseEst;         % noiseRMS.^2 (linear energy)
+    TofLast10dB = revT;
+    C = pSquareAtIntersection * TofLast10dB / (6 * log(10)) * fs;
+
+    EDCfirst = sum(energyData(1:t1IdxRaw)) + C;
+    numerator = sum(energyData(1:t1IdxRaw) .* timeVector(1:t1IdxRaw)) ...
+        + C^2 + C * pSquareAtIntersection * t1;
+    cTime = numerator / EDCfirst;
+end
+
+function [revT, noiseEst, intersectionTime] = native_lundeby_broadband(rawData, fs)
+    % Broadband branch of ita_roomacoustics_reverberation_time_lundeby:
+    % 30 ms windows, iterative noise/decay/crossing estimation. Includes the
+    % function's own onset shift (ita_time_shift '20dB' at its top, a no-op
+    % for already-shifted data in practice) and its nSamples2cut trimming;
+    % the returned intersectionTime is referenced to the input frame
+    % (crossingPoint - timeShifted), as in ITA's output object.
+
+    noiseEst = NaN;
+    revT = NaN;
+    intersectionTime = NaN;
+
+    % internal onset shift (usually a no-op: input is already shifted)
+    innerStart = native_start_IR(struct('time', rawData, 'samplingRate', fs, ...
+        'nSamples', numel(rawData), 'nChannels', 1), 20);
+    innerShift = -(innerStart(1)) + 1;
+    timeShifted = innerShift / fs;
+    rawData = circshift(rawData, [double(innerShift), 0]);
+
+    nSamples2cut = -timeShifted * fs + rem(-timeShifted * fs, 2);
+    nSamples = numel(rawData) - nSamples2cut;
+
+    freqDepWinTime = 0.03;                            % broadband window size
+    nPartsPer10dB = 5;
+    dbAboveNoise = 10;
+    useDynRangeForRegression = 20;
+
+    rawTimeData = rawData.^2;
+
+    % 1) smooth
+    nSamplesPerBlock = round(freqDepWinTime * fs);
+    timeWinData = local_blockMean(rawTimeData(1:nSamples), nSamplesPerBlock);
+    timeVecWin = (0:size(timeWinData,1)-1)' * nSamplesPerBlock / fs;
+
+    % 2) estimate noise
+    noiseEst = mean(timeWinData(end-round(size(timeWinData,1)/10):end)) + realmin;
+
+    % 3) regression
+    [~, startIdx] = max(timeWinData);
+    stopIdx = find(10*log10(timeWinData(startIdx+1:end)) > 10*log10(noiseEst) + dbAboveNoise, 1, 'last') + startIdx;
+    if isempty(stopIdx)
+        return
     end
-    
-    t1 = timeVecWin(t1idx);
-    t1IdxRaw = min(nSamples, round(t1 * fs) + 1);
-    
-    % Find t0 idx (10 dB above noise)
-    t0idx = find(timeWinData(1:t1idx) > 10 * pSquareAtIntersection, 1, 'last');
-    if isempty(t0idx)
-        t0idx = max(1, t1idx - 5);
+    dynRange = diff(10*log10(timeWinData([startIdx stopIdx])));
+    if (stopIdx == startIdx) || dynRange > -5
+        return
     end
-    
-    % Regression on smoothed data for TofLast10dB
-    if t0idx < t1idx
-        X = [timeVecWin(t0idx:t1idx).^0 timeVecWin(t0idx:t1idx)];
-        coeff = X \ (10*log10(abs(timeWinData(t0idx:t1idx)) + eps));
-        TofLast10dB = -60 / coeff(2);
-    else
-        TofLast10dB = 0;
+
+    X = [ones(stopIdx-startIdx+1,1) timeVecWin(startIdx:stopIdx)];
+    c = X \ (10*log10(timeWinData(startIdx:stopIdx)));
+    if c(2) == 0 || any(isnan(c))
+        return
     end
-    
-    if TofLast10dB < 0 || TofLast10dB > 20 || isnan(TofLast10dB)
-        TofLast10dB = 0;
+
+    % 4) preliminary crossing point
+    crossingPoint = (10*log10(noiseEst) - c(1)) / c(2);
+    if crossingPoint > (numel(rawData) / fs + timeShifted) * 2
+        return
     end
-    
-    % Calculate correction C according to DIN EN ISO 3382
-    C = pSquareAtIntersection * TofLast10dB / (6 * log(10)) * fs; 
-    
-    % Subtract Noise Energy
-    energyDataClean = energyData - pSquareAtIntersection;
-    
-    % Negative bounding for EDC
-    EDC = cumsum(energyDataClean(t1IdxRaw:-1:1));
-    EDC = EDC(end:-1:1) + C;
-    
-    % Exact center time formula from ita_roomacoustics_EDC line 307
-    numerator  = sum(energyDataClean(1:t1IdxRaw) .* timeVector(1:t1IdxRaw)) + C^2 + C * pSquareAtIntersection * t1;
-    cTime = numerator / (EDC(1) + eps);
+
+    % 5) new local time interval length
+    nBlocksInDecay = diff(10*log10(timeWinData([startIdx stopIdx]))) / -10 * nPartsPer10dB;
+    nSamplesPerBlock = round(diff(timeVecWin([startIdx stopIdx])) / nBlocksInDecay * fs);
+
+    % 6) average
+    timeWinData = local_blockMean(rawTimeData(1:nSamples), nSamplesPerBlock);
+    timeVecWin = (0:size(timeWinData,1)-1)' * nSamplesPerBlock / fs;
+    [~, idxMax] = max(timeWinData);
+
+    oldCrossingPoint = 11 + crossingPoint;
+    loopCounter = 0;
+    while abs(oldCrossingPoint - crossingPoint) > 0.01
+        % 7) estimate background level
+        correspondingDecay = 10;
+        idxLast10percent = round(size(timeWinData,1) * 0.9);
+        idx10dBBelowCrosspoint = max(1, round((crossingPoint - correspondingDecay ./ c(2)) * fs / nSamplesPerBlock));
+        noiseEst = mean(timeWinData(min(idxLast10percent, idx10dBBelowCrosspoint):end)) + realmin;
+
+        % 8) estimate late decay slope
+        startIdx = find(10*log10(timeWinData(idxMax:end)) < 10*log10(noiseEst) + dbAboveNoise + useDynRangeForRegression, 1, 'first') + idxMax - 1;
+        if isempty(startIdx)
+            startIdx = 1;
+        end
+        stopIdx = find(10*log10(timeWinData(startIdx+1:end)) < 10*log10(noiseEst) + dbAboveNoise, 1, 'first') + startIdx;
+        if isempty(stopIdx)
+            return
+        end
+        X = [ones(stopIdx-startIdx+1,1) timeVecWin(startIdx:stopIdx)];
+        c = X \ (10*log10(timeWinData(startIdx:stopIdx)));
+        if c(2) >= 0
+            c(2) = Inf;
+            break
+        end
+
+        % 9) find crosspoint
+        oldCrossingPoint = crossingPoint;
+        crossingPoint = (10*log10(noiseEst) - c(1)) / c(2);
+
+        loopCounter = loopCounter + 1;
+        if loopCounter > 30
+            break
+        end
+    end
+
+    revT = -60 / c(2);
+    intersectionTime = crossingPoint - timeShifted;
+end
+
+function bm = local_blockMean(x, nSamplesPerBlock)
+    % sum(reshape(x(1:floor(end/b)*b)), b, nBlocks), 1).' / b
+    nBlocks = floor(numel(x) / nSamplesPerBlock);
+    bm = sum(reshape(x(1:nBlocks*nSamplesPerBlock), nSamplesPerBlock, nBlocks), 1).' / nSamplesPerBlock;
 end

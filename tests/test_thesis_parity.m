@@ -322,7 +322,164 @@ classdef test_thesis_parity < matlab.unittest.TestCase
             testCase.verifyEqual(yNat.time(:), yIta.time(:), 'RelTol', 1e-10, ...
                 'native EQ multiplication must match ita_multiply_spk');
         end
+
+        function testEndToEndChainMatchesITA(testCase)
+            % Full-pipeline golden test: iceberg() versus a thesis-chain
+            % reconstruction built inline from ITA primitives (the path the
+            % thesis was measured with). Uses the committed rt_05 IR and the
+            % shipped calibration. Angle 45 deg: both pair-selection policies
+            % (2022 cascade and nearest-LS) agree there.
+            testCase.assumeTrue(exist('ita_roomacoustics', 'file') == 2, 'ITA Toolbox not installed');
+
+            fs = 44100; Tsig = 1; lvl = 80; iAngle = 45;
+            projectRoot = testCase.ProjectRoot;
+
+            [x, f] = audioread(fullfile(projectRoot, 'src', 'wavFiles', 'rt_05', 'BFormat1.Wav'));
+            Sc = load(fullfile(projectRoot, 'src', 'calibration', 'currentCalibration.mat'), ...
+                'newLevelFactor', 'iFactor', 'iLoudspeakerFreqFilter');
+
+            cfg = struct();
+            cfg.lsArray = [180:15:345 0:15:165];
+            cfg.ls_dir  = [[180 270 0 90]; zeros(1,4)]';
+            cfg.activeLSNumbers = [1 7 13 19];
+            cfg.newLevelFactor = Sc.newLevelFactor;
+            cfg.iFactor = Sc.iFactor;
+            for i = 1:24
+                cfg.iLoudspeakerFreqFilter(i).freqVector = double(Sc.iLoudspeakerFreqFilter(i).freqVector(:));
+                cfg.iLoudspeakerFreqFilter(i).freq       = Sc.iLoudspeakerFreqFilter(i).freq(:);
+            end
+
+            % ---------- reference: thesis chain with ITA primitives ----------
+            rng(9); xn = randn(Tsig*fs, 1);
+            sigI = ita_normalize_dat(itaAudio(xn, fs, 'time'));
+            iri  = itaAudio(x, f, 'time');
+            omni = ita_split(iri, 1);
+
+            c = ita_roomacoustics(omni, 'Center_Time', 'broadbandAnalysis', 1);
+            cTime = double(c.Center_Time.freq);
+            if isnan(cTime)
+                c = ita_roomacoustics(ita_normalize_dat(omni), 'Center_Time', ...
+                    'broadbandAnalysis', 1, 'edcMethod', 'noCut');
+                cTime = double(c.Center_Time.freq);
+            end
+
+            % DSER (early branch)
+            [IR_Early, sIdx] = ita_time_shift(omni, 'auto');
+            IR_Early = ita_time_window(IR_Early, [0 cTime], 'time', 'windowType', 'hann');
+            DSERi = ita_time_shift(IR_Early, abs(sIdx), 'time');
+
+            % amb branch: calibrate dry signal (nearest-LS EQ), convolve late, decode
+            [D4, ~] = ambiDecoder(cfg.ls_dir, 'SAD', 1, 1);
+            angDist = abs(mod(cfg.ls_dir(:,1) - iAngle + 180, 360) - 180);
+            [~, order] = sort(angDist);
+            iChannel = cfg.activeLSNumbers(order(1));
+            lsdB = 20*log10(cfg.iFactor/2e-5);
+            fqv = sigI.freqVector; fqv = double(reshape(fqv, [], 1));
+            InterpA = zeros(numel(fqv), 19);
+            InterpA(:, iChannel) = pchip(cfg.iLoudspeakerFreqFilter(iChannel).freqVector, ...
+                cfg.iLoudspeakerFreqFilter(iChannel).freq, fqv);
+            filtA = itaAudio(InterpA, fs, 'freq');
+            xr = sigI.time(:,1);
+            xr = xr / (2*sqrt(mean(xr.^2))) * 10^((lvl - lsdB)/20);
+            sigAmb = ita_multiply_spk(itaAudio(xr, fs, 'time'), filtA.ch(iChannel)) * cfg.newLevelFactor(iChannel);
+
+            [IR_LateI, s2] = ita_time_shift(iri, 'auto');
+            IR_LateI = ita_time_crop(IR_LateI, [cTime 0], 'time');
+            resync = iri.nSamples - IR_LateI.nSamples;
+            IR_LateI.time = [zeros(resync, 4); IR_LateI.time];
+            IR_LateI = ita_time_window(IR_LateI, [0 (IR_LateI.trackLength - 0.05)], 'time', 'windowType', 'rectwin');
+            IR_LateI = ita_time_shift(IR_LateI, abs(s2), 'time');
+            ambRef = decodeBformat(ita_convolve(sigAmb, IR_LateI).time, D4);
+
+            % vbap branch: convolve, ring_VBAP, calibrate per channel, x max(DSER)
+            convI = ita_convolve(sigI, DSERi);
+            panI = local_ring_VBAP(fs, convI.time(:,1), iAngle, cfg);
+            s1Db = 20*log10(10^(lvl/20) * cos((iAngle/90)*pi/2)^2);
+            s2Db = 20*log10(10^(lvl/20) * sin((iAngle/90)*pi/2)^2);
+            levels = zeros(1, 19);
+            levels(cfg.activeLSNumbers(order(1))) = s1Db;
+            levels(cfg.activeLSNumbers(order(2))) = s2Db;
+            nConv = size(convI.time, 1);
+            fqv2 = (0:floor(nConv/2))' * (fs / nConv);
+            InterpV = zeros(numel(fqv2), 19);
+            for ic = cfg.activeLSNumbers
+                InterpV(:, ic) = pchip(cfg.iLoudspeakerFreqFilter(ic).freqVector, ...
+                    cfg.iLoudspeakerFreqFilter(ic).freq, fqv2);
+            end
+            filtV = itaAudio(InterpV, fs, 'freq');
+            vbRef = zeros(size(panI,1), 4);
+            for ic = 1:4
+                ch = panI(:, ic);
+                ch = ch / (2*sqrt(mean(ch.^2)));
+                ch = ch * 10^((levels(cfg.activeLSNumbers(ic)) - lsdB)/20);
+                y = ita_multiply_spk(itaAudio(ch, fs, 'time'), filtV.ch(cfg.activeLSNumbers(ic)));
+                vbRef(:, ic) = y.time(:,1) * cfg.newLevelFactor(cfg.activeLSNumbers(ic));
+            end
+            vbRef = vbRef * max(DSERi.time(:));
+
+            % map into the master array and add
+            nRef = max(size(vbRef,1), size(ambRef,1));
+            ref = zeros(nRef, 24);
+            for ic = 1:4
+                ref(1:size(vbRef,1), cfg.activeLSNumbers(ic)) = ...
+                    ref(1:size(vbRef,1), cfg.activeLSNumbers(ic)) + vbRef(:, ic);
+                ref(1:size(ambRef,1), cfg.activeLSNumbers(ic)) = ...
+                    ref(1:size(ambRef,1), cfg.activeLSNumbers(ic)) + ambRef(:, ic);
+            end
+
+            % ---------- native ----------
+            s3.time = xn; s3.samplingRate = fs; s3.nSamples = numel(xn); ...
+            s3.nChannels = 1; s3.trackLength = Tsig;
+            IRs.time = x; IRs.samplingRate = f; IRs.nSamples = size(x,1); ...
+            IRs.nChannels = size(x,2); IRs.trackLength = size(x,1)/f;
+            outN = iceberg(s3, IRs, iAngle, lvl, cfg);
+
+            n = min(size(ref,1), size(outN.time,1));
+            for ic = cfg.activeLSNumbers
+                refMax = max(abs(ref(:, ic)));
+                if refMax == 0, continue; end
+                d = max(abs(ref(1:n, ic) - outN.time(1:n, ic)));
+                testCase.verifyLessThan(d / refMax, 1e-6, ...
+                    sprintf('channel %d must match the ITA chain (rel)', ic));
+            end
+        end
     end
+end
+
+function pansig = local_ring_VBAP(fs, iSignal, iAngle, configurationSetup)
+    % Verbatim copy of the ring_VBAP subfunction of iceberg_set_vbap
+    % (the pan stage is shared verbatim between both chains).
+    blocksize = fs/18.3750;
+    if fs == 48000
+        blocksize = fs/20;
+    elseif fs == 96000
+        blocksize = fs/40;
+    end
+    hopsize = blocksize/2;
+    ls_num = length(configurationSetup.ls_dir);
+    sig = iSignal;
+    Lsig = length(sig);
+    Nhop = ceil(Lsig/hopsize) + 2;
+    padsig = [zeros(hopsize,1); sig; zeros(Nhop*hopsize - Lsig - hopsize,1)];
+    pansig = zeros(size(padsig,1), ls_num);
+    static = ones(length((0:(Nhop-1)-1)'*(9*360)/(Nhop-1)),1);
+    iAngleCount = iAngle;
+    azis = iAngleCount*static;
+    eles = 0*azis;
+    ls_groups = findLsPairs(configurationSetup.ls_dir(:,1));
+    layoutInvMtx = invertLsMtx(configurationSetup.ls_dir(:,1), ls_groups);
+    counter = 1;
+    window = hanning(blocksize);
+    spread = 0;
+    for idx = 0:hopsize:(Nhop-2)*hopsize
+        winsig = padsig(idx+(1:blocksize),1).*window;
+        azi = azis(counter);
+        gains = vbap([azi 0], ls_groups, layoutInvMtx, spread);
+        panwinsig = winsig*gains;
+        pansig(idx+(1:blocksize),:) = pansig(idx+(1:blocksize),:) + panwinsig;
+        counter = counter+1;
+    end
+    pansig = pansig(hopsize+(1:Lsig),:);
 end
 
 function fv = localFreqVector(x, fs)

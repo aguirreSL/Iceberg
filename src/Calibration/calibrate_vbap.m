@@ -27,16 +27,56 @@ for iCount = activeLSNumbers
         freqVec);
 end
 
-%% Two nearest LS to the source angle.
-% Replaces the hardcoded 0/90/180/270 cascade. The previous cascade had
-% s1/s2 inverted in 3 of the 8 octants (sent higher SPL to the *further*
-% LS); the defensive deal(max,min) on the levels did not fix it because it
-% swapped values but not channel pointers.
+%% Pair selection and in-pair levels.
+% configSetup.pairSelection (optional, default 'cascade2022'):
+%   'cascade2022' - bit-faithful replication of the thesis-era
+%       set_level_vbap_fly_in octant cascade, INCLUDING its inversion in
+%       three of the eight octants (for sources in (90,180] and (225,270]
+%       the louder coefficient goes to the FARTHER loudspeaker of the pair).
+%       This is the parity target of the migration: reproduce the measured
+%       chain exactly, error included, until the planned redesign removes
+%       this stage altogether. Requires the 4-LS cardinal layout.
+%   'nearest'     - corrected nearest-two selection (25 Apr 2026 fix).
+% The in-pair level law itself (cos^2/sin^2 of the fractional position
+% inside the pair, max to s1) is identical in both modes.
 allAngles = configurationSetup.ls_dir(:,1);
 angDist   = abs(mod(allAngles - iAngles + 180, 360) - 180);
 [~, order] = sort(angDist);
-s1 = activeLSNumbers(order(1));
-s2 = activeLSNumbers(order(2));
+
+if isfield(configurationSetup, 'pairSelection') && strcmpi(configurationSetup.pairSelection, 'nearest')
+    s1 = activeLSNumbers(order(1));
+    s2 = activeLSNumbers(order(2));
+else
+    % Verbatim octant cascade of set_level_vbap_fly_in.m (2022). Note the
+    % (180,270] octant assigns s1=180/s2=270 in BOTH halves - that is the
+    % original code, not a typo.
+    lsOf = @(a) activeLSNumbers(find(allAngles == a, 1));
+    cardinals = [0 90 180 270];
+    if any(arrayfun(@(a) isempty(find(allAngles == a, 1)), cardinals))
+        error('calibrate_vbap:cascade2022 requires the 4-LS cardinal layout (0/90/180/270).');
+    end
+    if iAngles > 90 && iAngles <= 180
+        if iAngles <= 135
+            s1 = lsOf(180); s2 = lsOf(90);
+        else
+            s1 = lsOf(90);  s2 = lsOf(180);
+        end
+    elseif iAngles > 180 && iAngles <= 270
+        s1 = lsOf(180); s2 = lsOf(270);
+    elseif iAngles > 270 && iAngles <= 360
+        if iAngles <= 315
+            s1 = lsOf(270); s2 = lsOf(0);
+        else
+            s1 = lsOf(0);   s2 = lsOf(270);
+        end
+    else
+        if iAngles <= 45
+            s1 = lsOf(0);   s2 = lsOf(90);
+        else
+            s1 = lsOf(90);  s2 = lsOf(0);
+        end
+    end
+end
 
 gap = abs(mod(allAngles(order(2)) - allAngles(order(1)) + 180, 360) - 180);
 if gap == 0
@@ -46,12 +86,17 @@ else
 end
 s1_level = cos(ratio * pi/2)^2;
 s2_level = sin(ratio * pi/2)^2;
+% The 2022 code applied deal(max, min): the louder coefficient always goes
+% to the cascade's s1 (in 'nearest' mode s1 is the nearest, so this is a
+% no-op there).
+lv = max(s1_level, s2_level);
+lq = min(s1_level, s2_level);
 
 %% Per-channel SPL targets
 levels = zeros(1, max(activeLSNumbers));
 if level ~= 'n'
-    s1Db = 20 * log10(10^(level/20) * s1_level);
-    s2Db = 20 * log10(10^(level/20) * s2_level);
+    s1Db = 20 * log10(10^(level/20) * lv);
+    s2Db = 20 * log10(10^(level/20) * lq);
     if ~isinf(s1Db), levels(s1) = s1Db; end
     if ~isinf(s2Db), levels(s2) = s2Db; end
 end

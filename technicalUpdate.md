@@ -596,3 +596,31 @@ thesis ITA chain vs native, per angle, per active channel:
   2022 cascade's 90). Fixed by breaking ties toward the loudspeaker reached
   first clockwise from the source (45->0, 135->90, 225->180, 315->270),
   pinned by testNearestLSTieBreak. Suite 33/33.
+
+---
+
+## 2026-09-02 (round 5): thesis compatibility is now the default, error included
+
+Decision: the migration's first milestone is FULL bit parity with the
+measured thesis chain - including its flaws - because (a) the flawed
+pair-assignment stage is scheduled to disappear in the planned redesign
+(keep VBAP gains, no NSP level law), and (b) the flaw itself will be
+reported (paper/erratum), which requires a reference implementation that
+reproduces it exactly. Sequence agreed: 1) thesis parity, 2) fix the
+calibration without the pan law, 3) report the error, 4) redo the C++ port.
+
+Changes:
+- calibrate_vbap now defaults to `pairSelection = 'cascade2022'`: a verbatim
+  transcription of the set_level_vbap_fly_in octant cascade, including the
+  (180,270] branch that assigns s1=180 in both halves and the inversions in
+  (90,180] and (225,270] (louder coefficient to the farther loudspeaker).
+  Guarded: requires the 4-LS cardinal layout, as the 2022 code did.
+- `pairSelection = 'nearest'` keeps the corrected selection (25 Apr 2026 fix)
+  for the redesign phase.
+- The in-pair level law is unchanged (cos^2/sin^2, max to s1 via the 2022
+  deal(max,min)).
+
+Full-round validation (72 x 5 deg): every angle, every active channel now
+agrees with the thesis ITA chain within machine epsilon; no divergent angle
+remains (previously 26). Suite 34/34 with testPairSelectionModes pinning
+both modes at 100 deg.

@@ -323,6 +323,32 @@ classdef test_thesis_parity < matlab.unittest.TestCase
                 'native EQ multiplication must match ita_multiply_spk');
         end
 
+        function testPairSelectionModes(testCase)
+            % At 100 deg the 2022 cascade sent the loud coefficient to the
+            % 180 deg loudspeaker (inversion); the corrected selection sends
+            % it to 90 deg. Default must be the thesis behaviour (bit
+            % parity, error included); 'nearest' keeps the 25 Apr 2026 fix.
+            fs = 44100; rng(12);
+            sig.time = randn(fs,1); sig.samplingRate = fs; sig.nSamples = fs; ...
+            sig.nChannels = 1; sig.trackLength = 1;
+            DSER.time = zeros(2048,1); DSER.time(1) = 1; DSER.samplingRate = fs; ...
+            DSER.nSamples = 2048; DSER.nChannels = 1; DSER.trackLength = 2048/fs;
+            cfg = localFlatCal(fs);
+            cfg.ls_dir = [[180 270 0 90]; zeros(1,4)]';
+            cfg.lsArray = [180:15:345 0:15:165]; cfg.activeLSNumbers = [1 7 13 19];
+
+            vCompat = iceberg_set_vbap(sig, DSER, 100, 80, cfg);
+            rC = sqrt(mean(vCompat.time.^2, 1));
+            testCase.verifyLessThan(rC(3), rC(1), ...
+                'cascade2022 (default): 100 deg source is louder on the 180 deg LS (thesis error reproduced)');
+
+            cfg.pairSelection = 'nearest';
+            vNear = iceberg_set_vbap(sig, DSER, 100, 80, cfg);
+            rN = sqrt(mean(vNear.time.^2, 1));
+            testCase.verifyLessThan(rN(1), rN(4), ...
+                'nearest mode: 100 deg source is louder on the 90 deg LS (corrected)');
+        end
+
         function testNearestLSTieBreak(testCase)
             % At the 45/135/225/315 equidistant points the 2022 cascade
             % picked the loudspeaker CLOCKWISE from the source (45->0,

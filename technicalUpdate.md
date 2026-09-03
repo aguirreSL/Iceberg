@@ -576,3 +576,23 @@ all - why not replicate the fractional fftDegree? Measured answers:
 The remaining 3.8e-10 is accumulated FFT rounding across different code
 paths; bit-exactness beyond this would require executing ITA's own class
 code, which a native port cannot do by definition.
+
+---
+
+## 2026-09-02 (round 4): full-circle validation and the 135-degree tie-break
+
+Full round over all 72 ODEON IR positions (0:5:355 deg, rum019/rt05),
+thesis ITA chain vs native, per angle, per active channel:
+
+- Ambisonics branch: matches at **machine epsilon (worst 7.5e-16 relative)
+  at every one of the 72 angles**.
+- VBAP pair channels: identical except at exactly the 26 angles of the
+  inverted 2022 cascade sectors (95-130, 140-175, 180, 230-270 deg) - the
+  one documented deliberate deviation. 135 deg is numerically invisible
+  (the cascade tie gives equal 0.5/0.5 levels).
+- One real bug found by the round: at the equidistant points the native
+  nearest-LS search broke ties by ls_dir order, which picks the wrong
+  loudspeaker for the Ambisonics EQ at exactly 135 deg (180 instead of the
+  2022 cascade's 90). Fixed by breaking ties toward the loudspeaker reached
+  first clockwise from the source (45->0, 135->90, 225->180, 315->270),
+  pinned by testNearestLSTieBreak. Suite 33/33.

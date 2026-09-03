@@ -33,9 +33,13 @@ end
 
 %% Nearest physical LS as virtual reference (Nearest Speaker Pan).
 % Replaces the hardcoded 0/90/180/270 cascade — works for any layout.
+% Tie-break: the loudspeaker reached first CLOCKWISE from the source wins,
+% replicating the 2022 cascade at the 45/135/225/315 equidistant points
+% (45 -> 0 deg, 135 -> 90 deg, 225 -> 180 deg, 315 -> 270 deg).
 allAngles = configurationSetup.ls_dir(:,1);
 angDist   = abs(mod(allAngles - iAngles + 180, 360) - 180);
-[~, order] = sort(angDist);
+tieKey    = mod(iAngles - allAngles + 360, 360);   % clockwise distance, small = wins tie
+[~, order] = sortrows([angDist(:), tieKey(:)]);
 iChannel = activeLSNumbers(order(1));
 
 %% RMS normalize, scale to target dB, apply nearest-LS spectral filter

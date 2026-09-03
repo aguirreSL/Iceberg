@@ -323,6 +323,31 @@ classdef test_thesis_parity < matlab.unittest.TestCase
                 'native EQ multiplication must match ita_multiply_spk');
         end
 
+        function testNearestLSTieBreak(testCase)
+            % At the 45/135/225/315 equidistant points the 2022 cascade
+            % picked the loudspeaker CLOCKWISE from the source (45->0,
+            % 135->90, 225->180, 315->270). Pin the same tie-break.
+            fs = 44100; rng(8); N = fs;
+            fv = linspace(0, fs/2, 512)';
+            cfg = struct();
+            cfg.ls_dir = [[180 270 0 90]; zeros(1,4)]';
+            cfg.lsArray = [180:15:345 0:15:165]; cfg.activeLSNumbers = [1 7 13 19];
+            cfg.iFactor = 1; cfg.newLevelFactor = ones(1,24);
+            for i = 1:24
+                cfg.iLoudspeakerFreqFilter(i).freqVector = fv;
+                cfg.iLoudspeakerFreqFilter(i).freq = i * ones(512,1);  % unique gain per LS
+            end
+            K = 20*log10(cfg.iFactor/2e-5);
+            ties = {45, 13; 135, 19; 225, 1; 315, 7};   % angle -> expected LS (physical index)
+            for t = 1:size(ties,1)
+                s.time = randn(N,1); s.samplingRate = fs; s.nSamples = N; ...
+                s.nChannels = 1; s.trackLength = 1;
+                y = calibrate_ambisonics(s, K, ties{t,1}, cfg);
+                testCase.verifyEqual(sqrt(mean(y.time.^2)), 0.5 * ties{t,2}, 'RelTol', 1e-9, ...
+                    sprintf('tie at %d deg must take the EQ of physical LS %d', ties{t,1}, ties{t,2}));
+            end
+        end
+
         function testEndToEndChainMatchesITA(testCase)
             % Full-pipeline golden test: iceberg() versus a thesis-chain
             % reconstruction built inline from ITA primitives (the path the
